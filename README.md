@@ -1,0 +1,2 @@
+# VisualRegressionQATool
+画像比較して、品質確認を行うQAツールの開発を目的としたリポジトリです
