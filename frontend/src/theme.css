@@ -1,0 +1,186 @@
+/* Zapier-inspired design tokens (VisualRegressionQATool_UI_DESIGN.md) */
+:root {
+  --color-primary: #ff4f00;
+  --color-on-primary: #fffefb;
+  --color-ink: #201515;
+  --color-ink-soft: #2f2a26;
+  --color-ink-mid: #36342e;
+  --color-body: #605d52;
+  --color-body-mid: #939084;
+  --color-mute: #c5c0b1;
+  --color-canvas: #fffefb;
+  --color-canvas-soft: #f8f4f0;
+
+  --color-pass: #1f7a4d;
+  --color-pass-bg: #e6f4ec;
+  --color-fail: #c0392b;
+  --color-fail-bg: #fbe9e7;
+  --color-flaky: #b7791f;
+  --color-flaky-bg: #fbf1e0;
+
+  --font-display:
+    "Degular Display", Inter, system-ui, -apple-system, sans-serif;
+  --font-body: Inter, system-ui, -apple-system, sans-serif;
+
+  --rounded-sm: 6px;
+  --rounded-md: 12px;
+  --rounded-pill: 9999px;
+
+  --spacing-xxs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+  --spacing-4xl: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  margin: 0;
+  color: var(--color-ink);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  border-radius: var(--rounded-md);
+  padding: var(--spacing-md) var(--spacing-xl);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 27px;
+  border: none;
+  transition: opacity 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover {
+  opacity: 0.88;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn-secondary {
+  background: var(--color-ink);
+  color: var(--color-on-primary);
+}
+
+.btn-tertiary {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  border: 1px solid var(--color-ink);
+}
+
+.btn-sm {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  font-size: 14.4px;
+  font-weight: 700;
+  line-height: 14.4px;
+}
+
+.card {
+  background: var(--color-canvas-soft);
+  border-radius: var(--rounded-md);
+  padding: var(--spacing-xl);
+}
+
+.card-outline {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-ink);
+  border-radius: var(--rounded-md);
+  padding: var(--spacing-xl);
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  border: 1px solid var(--color-ink);
+  border-radius: var(--rounded-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--rounded-pill);
+  padding: var(--spacing-xxs) var(--spacing-md);
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-pass {
+  color: var(--color-pass);
+  background: var(--color-pass-bg);
+}
+
+.badge-fail {
+  color: var(--color-fail);
+  background: var(--color-fail-bg);
+}
+
+.badge-flaky {
+  color: var(--color-flaky);
+  background: var(--color-flaky-bg);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-body);
+}
+
+.text-body-mid {
+  color: var(--color-body-mid);
+}
+
+.text-mute {
+  color: var(--color-mute);
+}
