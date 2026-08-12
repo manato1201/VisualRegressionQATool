@@ -81,3 +81,16 @@ export interface FirstBadCommit {
   build_version: string;
   evaluated_at: string;
 }
+
+export interface DiffBatchItemResult {
+  captured_image_id: string;
+  ok: boolean;
+  diff_image: DiffImage | null;
+  evaluation_result: EvaluationResult | null;
+  alert: Record<string, unknown> | null;
+  error: string | null;
+}
+
+export interface DiffBatchRunResponse {
+  results: DiffBatchItemResult[];
+}

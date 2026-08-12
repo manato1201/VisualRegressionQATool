@@ -11,8 +11,10 @@ interface Props {
   onUpload: (buildVersion: string, file: File) => Promise<void>;
   onPromote: (capturedImageId: string) => Promise<void>;
   onRunDiff: (capturedImageId: string) => Promise<void>;
+  onRunDiffBatch: (capturedImageIds: string[]) => Promise<void>;
   onDelete: (capturedImageId: string) => Promise<void>;
   busyCapturedImageId: string | null;
+  batchBusy: boolean;
 }
 
 export function CapturePanel({
@@ -23,12 +25,15 @@ export function CapturePanel({
   onUpload,
   onPromote,
   onRunDiff,
+  onRunDiffBatch,
   onDelete,
   busyCapturedImageId,
+  batchBusy,
 }: Props) {
   const [buildVersion, setBuildVersion] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +51,22 @@ export function CapturePanel({
   function handleDelete(img: CapturedImage) {
     if (!window.confirm(`「${img.build_version}」を削除しますか?この操作は取り消せません。`)) return;
     onDelete(img.captured_image_id);
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBatchRun() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    await onRunDiffBatch(ids);
+    setSelected(new Set());
   }
 
   return (
@@ -71,13 +92,49 @@ export function CapturePanel({
 
       <DiffSettings value={diffSettings} onChange={onDiffSettingsChange} />
 
+      {capturedImages.length > 0 && (
+        <div
+          className="card-outline"
+          style={{ padding: "var(--spacing-md) var(--spacing-lg)", display: "flex", gap: "var(--spacing-md)", alignItems: "center", flexWrap: "wrap" }}
+        >
+          <span style={{ fontSize: 14 }} className="text-body-mid">
+            {selected.size}件選択中
+          </span>
+          <button className="btn btn-tertiary btn-sm" onClick={() => setSelected(new Set(capturedImages.map((i) => i.captured_image_id)))}>
+            すべて選択
+          </button>
+          <button className="btn btn-tertiary btn-sm" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+            選択解除
+          </button>
+          <button className="btn btn-secondary btn-sm" disabled={selected.size === 0 || !activeReference || batchBusy} onClick={handleBatchRun}>
+            {batchBusy ? "一括実行中…" : `選択した画像をまとめて差分実行 (${selected.size})`}
+          </button>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "var(--spacing-md)" }}>
         {capturedImages.length === 0 && <p className="text-body-mid">まだ撮影画像がありません</p>}
         {capturedImages.map((img) => {
           const isReference = activeReference?.captured_image_id === img.captured_image_id;
-          const busy = busyCapturedImageId === img.captured_image_id;
+          const busy = busyCapturedImageId === img.captured_image_id || batchBusy;
+          const isSelected = selected.has(img.captured_image_id);
           return (
-            <div key={img.captured_image_id} className="card-outline" style={{ padding: "var(--spacing-md)", display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
+            <div
+              key={img.captured_image_id}
+              className="card-outline"
+              style={{
+                padding: "var(--spacing-md)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--spacing-sm)",
+                outline: isSelected ? "2px solid var(--color-primary)" : "none",
+                outlineOffset: 2,
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", fontSize: 12 }} className="text-body-mid">
+                <input type="checkbox" checked={isSelected} onChange={() => toggleSelected(img.captured_image_id)} />
+                一括実行に含める
+              </label>
               <img
                 src={imageUrl("captures", img.captured_image_id)}
                 alt={img.build_version}
@@ -95,7 +152,7 @@ export function CapturePanel({
                   </button>
                 )}
                 <button className="btn btn-secondary btn-sm" disabled={busy || !activeReference} onClick={() => onRunDiff(img.captured_image_id)}>
-                  {busy ? "実行中…" : "差分実行"}
+                  {busyCapturedImageId === img.captured_image_id ? "実行中…" : "差分実行"}
                 </button>
                 <button
                   className="btn btn-tertiary btn-sm"

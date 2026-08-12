@@ -18,33 +18,43 @@ router = APIRouter(prefix="/api/diffs", tags=["diff_image", "evaluation_result"]
 _engine = PixelDiffEngine()
 
 
-@router.post("/run", response_model=models.DiffRunResult)
-def run_diff(
-    body: models.DiffRunRequest,
-    conn: sqlite3.Connection = Depends(get_conn),
-    blobs: BlobStore = Depends(get_blob_store),
-    alert_sink: IAlertSink = Depends(get_alert_sink),
-):
-    captured = repository.get_captured_image(conn, body.captured_image_id)
-    if not captured:
-        raise HTTPException(status_code=404, detail="captured image not found")
+class _DiffRunError(Exception):
+    """Internal error carrying an HTTP status, used so a batch run can catch
+    one item's failure without raising past the rest of the batch."""
 
-    if body.reference_image_id:
-        reference = repository.get_reference_image(conn, body.reference_image_id)
+    def __init__(self, status_code: int, detail: str) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(detail)
+
+
+def _execute_diff_run(
+    conn: sqlite3.Connection,
+    blobs: BlobStore,
+    alert_sink: IAlertSink,
+    *,
+    captured_image_id: str,
+    reference_image_id: str | None,
+    per_pixel_tolerance: int,
+    max_diff_pixels: int,
+    min_diff_region_pixels: int,
+) -> models.DiffRunResult:
+    captured = repository.get_captured_image(conn, captured_image_id)
+    if not captured:
+        raise _DiffRunError(404, "captured image not found")
+
+    if reference_image_id:
+        reference = repository.get_reference_image(conn, reference_image_id)
     else:
         reference = repository.get_active_reference_image(conn, captured.instruction_id)
     if not reference:
-        raise HTTPException(
-            status_code=404, detail="no reference image available for this instruction"
-        )
+        raise _DiffRunError(404, "no reference image available for this instruction")
 
     reference_captured = repository.get_captured_image(
         conn, reference.captured_image_id
     )
     if not reference_captured:
-        raise HTTPException(
-            status_code=500, detail="reference image points at a missing captured image"
-        )
+        raise _DiffRunError(500, "reference image points at a missing captured image")
 
     captured_bytes = blobs.read(captured.image_path)
     reference_bytes = blobs.read(reference_captured.image_path)
@@ -53,12 +63,12 @@ def run_diff(
         result = _engine.compare_bytes(
             captured_bytes,
             reference_bytes,
-            per_pixel_tolerance=body.per_pixel_tolerance,
-            max_diff_pixels=body.max_diff_pixels,
-            min_diff_region_pixels=body.min_diff_region_pixels,
+            per_pixel_tolerance=per_pixel_tolerance,
+            max_diff_pixels=max_diff_pixels,
+            min_diff_region_pixels=min_diff_region_pixels,
         )
     except ImageDimensionMismatchError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise _DiffRunError(422, str(exc)) from exc
 
     buf = io.BytesIO()
     result.diff_image.save(buf, format="PNG")
@@ -88,6 +98,71 @@ def run_diff(
     return models.DiffRunResult(
         diff_image=diff_image, evaluation_result=evaluation_result, alert=alert_payload
     )
+
+
+@router.post("/run", response_model=models.DiffRunResult)
+def run_diff(
+    body: models.DiffRunRequest,
+    conn: sqlite3.Connection = Depends(get_conn),
+    blobs: BlobStore = Depends(get_blob_store),
+    alert_sink: IAlertSink = Depends(get_alert_sink),
+):
+    try:
+        return _execute_diff_run(
+            conn,
+            blobs,
+            alert_sink,
+            captured_image_id=body.captured_image_id,
+            reference_image_id=body.reference_image_id,
+            per_pixel_tolerance=body.per_pixel_tolerance,
+            max_diff_pixels=body.max_diff_pixels,
+            min_diff_region_pixels=body.min_diff_region_pixels,
+        )
+    except _DiffRunError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@router.post("/run-batch", response_model=models.DiffBatchRunResponse)
+def run_diff_batch(
+    body: models.DiffBatchRunRequest,
+    conn: sqlite3.Connection = Depends(get_conn),
+    blobs: BlobStore = Depends(get_blob_store),
+    alert_sink: IAlertSink = Depends(get_alert_sink),
+):
+    """Run diffs for many CapturedImages in one call. One item's failure
+    (e.g. a resolution mismatch) is recorded per-item and does not abort the
+    rest of the batch — the point of a batch run is to survey many builds at
+    once, so a single bad capture shouldn't stop the others from being
+    evaluated."""
+    results: list[models.DiffBatchItemResult] = []
+    for captured_image_id in body.captured_image_ids:
+        try:
+            run_result = _execute_diff_run(
+                conn,
+                blobs,
+                alert_sink,
+                captured_image_id=captured_image_id,
+                reference_image_id=body.reference_image_id,
+                per_pixel_tolerance=body.per_pixel_tolerance,
+                max_diff_pixels=body.max_diff_pixels,
+                min_diff_region_pixels=body.min_diff_region_pixels,
+            )
+            results.append(
+                models.DiffBatchItemResult(
+                    captured_image_id=captured_image_id,
+                    ok=True,
+                    diff_image=run_result.diff_image,
+                    evaluation_result=run_result.evaluation_result,
+                    alert=run_result.alert,
+                )
+            )
+        except _DiffRunError as exc:
+            results.append(
+                models.DiffBatchItemResult(
+                    captured_image_id=captured_image_id, ok=False, error=exc.detail
+                )
+            )
+    return models.DiffBatchRunResponse(results=results)
 
 
 def _handle_alerting(

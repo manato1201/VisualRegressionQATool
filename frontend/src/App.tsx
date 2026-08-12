@@ -41,6 +41,7 @@ export default function App() {
   const [diffSettings, setDiffSettings] = useState<DiffSettingsValue>(
     DEFAULT_DIFF_SETTINGS,
   );
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const refreshInstructions = useCallback(async () => {
     const list = await api.listInstructions();
@@ -154,6 +155,41 @@ export default function App() {
     }
   }
 
+  async function handleRunDiffBatch(capturedImageIds: string[]) {
+    if (!selectedInstructionId) return;
+    setBatchBusy(true);
+    setBanner(null);
+    try {
+      const response = await api.runDiffBatch(capturedImageIds, {
+        perPixelTolerance: diffSettings.perPixelTolerance,
+        maxDiffPixels: diffSettings.maxDiffPixels,
+        minDiffRegionPixels: diffSettings.minDiffRegionPixels,
+      });
+      await refreshInstructionDetail(selectedInstructionId);
+
+      const failures = response.results.filter((r) => !r.ok);
+      if (failures.length > 0) {
+        const idToBuild = new Map(
+          capturedImages.map((img) => [
+            img.captured_image_id,
+            img.build_version,
+          ]),
+        );
+        const lines = failures.map(
+          (f) =>
+            `${idToBuild.get(f.captured_image_id) ?? f.captured_image_id}: ${f.error}`,
+        );
+        setBanner(
+          `一括差分実行: ${response.results.length - failures.length}件成功 / ${failures.length}件失敗\n${lines.join("\n")}`,
+        );
+      }
+    } catch (e) {
+      setBanner(describeApiError(e));
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   async function handleDelete(capturedImageId: string) {
     if (!selectedInstructionId) return;
     setBusyCapturedImageId(capturedImageId);
@@ -211,6 +247,7 @@ export default function App() {
             background: "var(--color-fail-bg)",
             color: "var(--color-fail)",
             borderRadius: "var(--rounded-md)",
+            whiteSpace: "pre-line",
           }}
         >
           {banner}
@@ -257,8 +294,10 @@ export default function App() {
                   onUpload={handleUpload}
                   onPromote={handlePromote}
                   onRunDiff={handleRunDiff}
+                  onRunDiffBatch={handleRunDiffBatch}
                   onDelete={handleDelete}
                   busyCapturedImageId={busyCapturedImageId}
+                  batchBusy={batchBusy}
                 />
                 <RunHistory
                   runs={runs}
