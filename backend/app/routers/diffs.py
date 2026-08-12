@@ -55,6 +55,7 @@ def run_diff(
             reference_bytes,
             per_pixel_tolerance=body.per_pixel_tolerance,
             max_diff_pixels=body.max_diff_pixels,
+            min_diff_region_pixels=body.min_diff_region_pixels,
         )
     except ImageDimensionMismatchError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

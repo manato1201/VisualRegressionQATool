@@ -67,6 +67,7 @@ class DiffRunRequest(BaseModel):
     reference_image_id: Optional[str] = None
     per_pixel_tolerance: int = 0
     max_diff_pixels: int = 0
+    min_diff_region_pixels: int = 1
 
 
 class DiffImageOut(BaseModel):

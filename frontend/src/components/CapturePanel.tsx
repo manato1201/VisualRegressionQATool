@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { imageUrl } from "../api";
 import type { CapturedImage, ReferenceImage } from "../types";
+import { DiffSettings, type DiffSettingsValue } from "./DiffSettings";
 
 interface Props {
   capturedImages: CapturedImage[];
   activeReference: ReferenceImage | null;
+  diffSettings: DiffSettingsValue;
+  onDiffSettingsChange: (value: DiffSettingsValue) => void;
   onUpload: (buildVersion: string, file: File) => Promise<void>;
   onPromote: (capturedImageId: string) => Promise<void>;
   onRunDiff: (capturedImageId: string) => Promise<void>;
@@ -12,7 +15,17 @@ interface Props {
   busyCapturedImageId: string | null;
 }
 
-export function CapturePanel({ capturedImages, activeReference, onUpload, onPromote, onRunDiff, onDelete, busyCapturedImageId }: Props) {
+export function CapturePanel({
+  capturedImages,
+  activeReference,
+  diffSettings,
+  onDiffSettingsChange,
+  onUpload,
+  onPromote,
+  onRunDiff,
+  onDelete,
+  busyCapturedImageId,
+}: Props) {
   const [buildVersion, setBuildVersion] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -55,6 +68,8 @@ export function CapturePanel({ capturedImages, activeReference, onUpload, onProm
           {uploading ? "アップロード中…" : "アップロード"}
         </button>
       </form>
+
+      <DiffSettings value={diffSettings} onChange={onDiffSettingsChange} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "var(--spacing-md)" }}>
         {capturedImages.length === 0 && <p className="text-body-mid">まだ撮影画像がありません</p>}
