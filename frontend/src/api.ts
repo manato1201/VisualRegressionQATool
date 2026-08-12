@@ -1,6 +1,7 @@
 import type {
   CaptureInstruction,
   CapturedImage,
+  DiffBatchRunResponse,
   DiffImage,
   DiffRunResult,
   FirstBadCommit,
@@ -137,6 +138,27 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         captured_image_id: capturedImageId,
+        reference_image_id: opts?.referenceImageId,
+        per_pixel_tolerance: opts?.perPixelTolerance ?? 0,
+        max_diff_pixels: opts?.maxDiffPixels ?? 0,
+        min_diff_region_pixels: opts?.minDiffRegionPixels ?? 1,
+      }),
+    }),
+
+  runDiffBatch: (
+    capturedImageIds: string[],
+    opts?: {
+      perPixelTolerance?: number;
+      maxDiffPixels?: number;
+      minDiffRegionPixels?: number;
+      referenceImageId?: string;
+    },
+  ) =>
+    request<DiffBatchRunResponse>("/api/diffs/run-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        captured_image_ids: capturedImageIds,
         reference_image_id: opts?.referenceImageId,
         per_pixel_tolerance: opts?.perPixelTolerance ?? 0,
         max_diff_pixels: opts?.maxDiffPixels ?? 0,

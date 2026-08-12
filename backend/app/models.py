@@ -93,6 +93,27 @@ class DiffRunResult(BaseModel):
     alert: Optional[dict] = None
 
 
+class DiffBatchRunRequest(BaseModel):
+    captured_image_ids: list[str]
+    reference_image_id: Optional[str] = None
+    per_pixel_tolerance: int = 0
+    max_diff_pixels: int = 0
+    min_diff_region_pixels: int = 1
+
+
+class DiffBatchItemResult(BaseModel):
+    captured_image_id: str
+    ok: bool
+    diff_image: Optional[DiffImageOut] = None
+    evaluation_result: Optional[EvaluationResultOut] = None
+    alert: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class DiffBatchRunResponse(BaseModel):
+    results: list[DiffBatchItemResult]
+
+
 class FirstBadCommitOut(BaseModel):
     instruction_id: str
     build_version: str
