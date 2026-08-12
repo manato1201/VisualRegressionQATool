@@ -63,6 +63,15 @@ export function GettingStarted() {
           ※撮影画像とReference画像の解像度が異なる場合は比較自体ができず、エラーになります(サイズを揃えてください)。
         </p>
       </div>
+
+      <div className="card-outline" style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
+        <h3 style={{ fontSize: 18 }}>思ったより差分が多く出るとき</h3>
+        <p style={{ margin: 0 }} className="text-body-mid">
+          Unityの決定的なレンダリング撮影同士の比較なら初期設定(許容誤差0)のままで問題ありませんが、JPEG等で再圧縮された画像同士を比較すると、見た目は同じでも圧縮ノイズにより画面のほとんどが差分として検出されることがあります。
+          「撮影画像」パネル内の「差分の詳細設定」で<strong>許容誤差</strong>(微小な色ズレを無視)や<strong>最小差分領域サイズ</strong>
+          (孤立したノイズ画素を無視し、まとまった本物の変化だけを検出)を調整すると改善します。
+        </p>
+      </div>
     </section>
   );
 }

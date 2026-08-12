@@ -105,6 +105,72 @@ def test_tolerance_absorbs_sub_threshold_noise():
     assert result.verdict == "pass"
 
 
+def test_min_diff_region_pixels_drops_scattered_noise_but_keeps_real_regression():
+    """Simulates JPEG-style scattered single-pixel noise across a whole frame
+    plus one deliberate localized change — the noise should be filtered while
+    the real regression survives, which is what makes "spot the difference"
+    grade precision possible without a perceptual algorithm."""
+    reference_arr = np.full((HEIGHT, WIDTH, 3), (120, 120, 120), dtype=np.uint8)
+    captured_arr = reference_arr.copy()
+
+    # Isolated single-pixel compression-style noise on a sparse grid (spacing
+    # of 4 guarantees no two noise pixels are 8-connected to each other).
+    noise_coords = [(y, x) for y in range(1, HEIGHT, 4) for x in range(1, WIDTH, 4)]
+    for y, x in noise_coords:
+        captured_arr[y, x] = (125, 120, 120)  # diff of 5
+
+    # One deliberate contiguous regression block, well clear of noise pixels.
+    y0, y1, x0, x1 = 20, 30, 20, 35
+    captured_arr[y0:y1, x0:x1] = (255, 0, 0)
+    for y, x in noise_coords:
+        if y0 <= y < y1 and x0 <= x < x1:
+            captured_arr[y, x] = (
+                255,
+                0,
+                0,
+            )  # keep block solid, don't reintroduce noise there
+
+    reference = Image.fromarray(reference_arr, mode="RGB")
+    captured = Image.fromarray(captured_arr, mode="RGB")
+
+    engine = PixelDiffEngine()
+
+    unfiltered = engine.compare_bytes(
+        _to_bytes(captured),
+        _to_bytes(reference),
+        per_pixel_tolerance=0,
+        max_diff_pixels=0,
+    )
+    assert unfiltered.diff_pixel_count > (y1 - y0) * (x1 - x0), (
+        "noise should inflate the raw diff count"
+    )
+
+    filtered = engine.compare_bytes(
+        _to_bytes(captured),
+        _to_bytes(reference),
+        per_pixel_tolerance=0,
+        max_diff_pixels=0,
+        min_diff_region_pixels=20,
+    )
+    assert filtered.diff_pixel_count == (y1 - y0) * (x1 - x0)
+    assert filtered.verdict == "fail"
+
+
+def test_min_diff_region_pixels_defaults_to_no_filtering():
+    reference_arr = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
+    captured_arr = reference_arr.copy()
+    captured_arr[3, 3] = (10, 0, 0)
+
+    engine = PixelDiffEngine()
+    result = engine.compare_bytes(
+        _to_bytes(Image.fromarray(captured_arr, mode="RGB")),
+        _to_bytes(Image.fromarray(reference_arr, mode="RGB")),
+        per_pixel_tolerance=0,
+        max_diff_pixels=0,
+    )
+    assert result.diff_pixel_count == 1
+
+
 def test_dimension_mismatch_raises_instead_of_silently_tolerating():
     small = _solid_image((0, 0, 0))
     big_arr = np.zeros((HEIGHT + 1, WIDTH, 3), dtype=np.uint8)

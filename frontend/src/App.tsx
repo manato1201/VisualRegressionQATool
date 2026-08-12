@@ -1,25 +1,46 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "./api";
 import { CapturePanel } from "./components/CapturePanel";
+import {
+  DEFAULT_DIFF_SETTINGS,
+  type DiffSettingsValue,
+} from "./components/DiffSettings";
 import { DiffViewer } from "./components/DiffViewer";
 import { GettingStarted } from "./components/GettingStarted";
 import { InstructionPanel } from "./components/InstructionPanel";
 import { RunHistory } from "./components/RunHistory";
-import type { CaptureInstruction, CapturedImage, FirstBadCommit, ReferenceImage, RunRow } from "./types";
+import type {
+  CaptureInstruction,
+  CapturedImage,
+  FirstBadCommit,
+  ReferenceImage,
+  RunRow,
+} from "./types";
 
 type Tab = "guide" | "tool";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("guide");
   const [instructions, setInstructions] = useState<CaptureInstruction[]>([]);
-  const [selectedInstructionId, setSelectedInstructionId] = useState<string | null>(null);
+  const [selectedInstructionId, setSelectedInstructionId] = useState<
+    string | null
+  >(null);
   const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
-  const [activeReference, setActiveReference] = useState<ReferenceImage | null>(null);
+  const [activeReference, setActiveReference] = useState<ReferenceImage | null>(
+    null,
+  );
   const [runs, setRuns] = useState<RunRow[]>([]);
-  const [firstBadCommit, setFirstBadCommit] = useState<FirstBadCommit | null>(null);
+  const [firstBadCommit, setFirstBadCommit] = useState<FirstBadCommit | null>(
+    null,
+  );
   const [selectedRun, setSelectedRun] = useState<RunRow | null>(null);
-  const [busyCapturedImageId, setBusyCapturedImageId] = useState<string | null>(null);
+  const [busyCapturedImageId, setBusyCapturedImageId] = useState<string | null>(
+    null,
+  );
   const [banner, setBanner] = useState<string | null>(null);
+  const [diffSettings, setDiffSettings] = useState<DiffSettingsValue>(
+    DEFAULT_DIFF_SETTINGS,
+  );
 
   const refreshInstructions = useCallback(async () => {
     const list = await api.listInstructions();
@@ -27,23 +48,36 @@ export default function App() {
     return list;
   }, []);
 
-  const refreshInstructionDetail = useCallback(async (instructionId: string) => {
-    const [images, runList] = await Promise.all([api.listCapturedImages(instructionId), api.listRuns(instructionId)]);
-    setCapturedImages(images);
-    setRuns(runList);
-    setSelectedRun((prev) => runList.find((r) => r.evaluation_result_id === prev?.evaluation_result_id) ?? runList[0] ?? null);
+  const refreshInstructionDetail = useCallback(
+    async (instructionId: string) => {
+      const [images, runList] = await Promise.all([
+        api.listCapturedImages(instructionId),
+        api.listRuns(instructionId),
+      ]);
+      setCapturedImages(images);
+      setRuns(runList);
+      setSelectedRun(
+        (prev) =>
+          runList.find(
+            (r) => r.evaluation_result_id === prev?.evaluation_result_id,
+          ) ??
+          runList[0] ??
+          null,
+      );
 
-    try {
-      setActiveReference(await api.getActiveReference(instructionId));
-    } catch {
-      setActiveReference(null);
-    }
-    try {
-      setFirstBadCommit(await api.firstBadCommit(instructionId));
-    } catch {
-      setFirstBadCommit(null);
-    }
-  }, []);
+      try {
+        setActiveReference(await api.getActiveReference(instructionId));
+      } catch {
+        setActiveReference(null);
+      }
+      try {
+        setFirstBadCommit(await api.firstBadCommit(instructionId));
+      } catch {
+        setFirstBadCommit(null);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     refreshInstructions()
@@ -58,13 +92,17 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedInstructionId) return;
-    refreshInstructionDetail(selectedInstructionId).catch((e) => setBanner(describeApiError(e)));
+    refreshInstructionDetail(selectedInstructionId).catch((e) =>
+      setBanner(describeApiError(e)),
+    );
   }, [selectedInstructionId, refreshInstructionDetail]);
 
   async function handleCreateInstruction(sceneOrLevelId: string) {
     setBanner(null);
     try {
-      const created = await api.createInstruction({ scene_or_level_id: sceneOrLevelId });
+      const created = await api.createInstruction({
+        scene_or_level_id: sceneOrLevelId,
+      });
       await refreshInstructions();
       setSelectedInstructionId(created.instruction_id);
       setTab("tool");
@@ -103,7 +141,11 @@ export default function App() {
     setBusyCapturedImageId(capturedImageId);
     setBanner(null);
     try {
-      await api.runDiff(capturedImageId);
+      await api.runDiff(capturedImageId, {
+        perPixelTolerance: diffSettings.perPixelTolerance,
+        maxDiffPixels: diffSettings.maxDiffPixels,
+        minDiffRegionPixels: diffSettings.minDiffRegionPixels,
+      });
       await refreshInstructionDetail(selectedInstructionId);
     } catch (e) {
       setBanner(describeApiError(e));
@@ -127,7 +169,9 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
+    <div
+      style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}
+    >
       <header
         style={{
           padding: "var(--spacing-md) var(--spacing-xl)",
@@ -144,10 +188,16 @@ export default function App() {
           <h1 style={{ fontSize: 32 }}>差分ビューア</h1>
         </div>
         <nav style={{ display: "flex", gap: "var(--spacing-xs)" }}>
-          <button className={`btn btn-sm ${tab === "guide" ? "btn-secondary" : "btn-tertiary"}`} onClick={() => setTab("guide")}>
+          <button
+            className={`btn btn-sm ${tab === "guide" ? "btn-secondary" : "btn-tertiary"}`}
+            onClick={() => setTab("guide")}
+          >
             はじめに
           </button>
-          <button className={`btn btn-sm ${tab === "tool" ? "btn-secondary" : "btn-tertiary"}`} onClick={() => setTab("tool")}>
+          <button
+            className={`btn btn-sm ${tab === "tool" ? "btn-secondary" : "btn-tertiary"}`}
+            onClick={() => setTab("tool")}
+          >
             ツール
           </button>
         </nav>
@@ -172,7 +222,15 @@ export default function App() {
           <GettingStarted />
         </main>
       ) : (
-        <main style={{ display: "flex", gap: "var(--spacing-xl)", padding: "var(--spacing-xl)", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <main
+          style={{
+            display: "flex",
+            gap: "var(--spacing-xl)",
+            padding: "var(--spacing-xl)",
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+          }}
+        >
           <InstructionPanel
             instructions={instructions}
             selectedId={selectedInstructionId}
@@ -180,23 +238,40 @@ export default function App() {
             onCreate={handleCreateInstruction}
           />
 
-          <div style={{ flex: 1, minWidth: 320, display: "flex", flexDirection: "column", gap: "var(--spacing-xl)" }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 320,
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--spacing-xl)",
+            }}
+          >
             {selectedInstructionId ? (
               <>
                 <CapturePanel
                   capturedImages={capturedImages}
                   activeReference={activeReference}
+                  diffSettings={diffSettings}
+                  onDiffSettingsChange={setDiffSettings}
                   onUpload={handleUpload}
                   onPromote={handlePromote}
                   onRunDiff={handleRunDiff}
                   onDelete={handleDelete}
                   busyCapturedImageId={busyCapturedImageId}
                 />
-                <RunHistory runs={runs} firstBadCommit={firstBadCommit} selectedRunId={selectedRun?.evaluation_result_id ?? null} onSelectRun={setSelectedRun} />
+                <RunHistory
+                  runs={runs}
+                  firstBadCommit={firstBadCommit}
+                  selectedRunId={selectedRun?.evaluation_result_id ?? null}
+                  onSelectRun={setSelectedRun}
+                />
                 {selectedRun && <DiffViewer run={selectedRun} />}
               </>
             ) : (
-              <p className="text-body-mid">左のパネルから撮影指示を選択するか、新規作成してください。</p>
+              <p className="text-body-mid">
+                左のパネルから撮影指示を選択するか、新規作成してください。
+              </p>
             )}
           </div>
         </main>

@@ -128,6 +128,7 @@ export const api = {
     opts?: {
       perPixelTolerance?: number;
       maxDiffPixels?: number;
+      minDiffRegionPixels?: number;
       referenceImageId?: string;
     },
   ) =>
@@ -139,6 +140,7 @@ export const api = {
         reference_image_id: opts?.referenceImageId,
         per_pixel_tolerance: opts?.perPixelTolerance ?? 0,
         max_diff_pixels: opts?.maxDiffPixels ?? 0,
+        min_diff_region_pixels: opts?.minDiffRegionPixels ?? 1,
       }),
     }),
 
