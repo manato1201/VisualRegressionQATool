@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VisualRegressionQATool — アーキテクチャドキュメント</title>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  :root {
+    --color-primary: #ff4f00;
+    --color-on-primary: #fffefb;
+    --color-ink: #201515;
+    --color-ink-soft: #2f2a26;
+    --color-body: #605d52;
+    --color-body-mid: #939084;
+    --color-mute: #c5c0b1;
+    --color-canvas: #fffefb;
+    --color-canvas-soft: #f8f4f0;
+    --rounded-sm: 6px;
+    --rounded-md: 12px;
+    --font-display: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    line-height: 1.7;
+  }
+  header.hero {
+    background: var(--color-ink);
+    color: var(--color-on-primary);
+    padding: 64px 24px;
+  }
+  header.hero .inner { max-width: 960px; margin: 0 auto; }
+  header.hero p.eyebrow {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--color-primary);
+    margin: 0 0 8px;
+  }
+  header.hero h1 { font-family: var(--font-display); font-size: 40px; font-weight: 500; margin: 0 0 16px; }
+  header.hero p.tagline { font-size: 18px; color: var(--color-canvas-soft); max-width: 720px; margin: 0; }
+  header.hero code.pipeline {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.08);
+    border-radius: var(--rounded-sm);
+    font-size: 13px;
+    color: var(--color-canvas-soft);
+  }
+
+  nav.toc {
+    max-width: 960px;
+    margin: -28px auto 0;
+    background: var(--color-canvas);
+    border: 1px solid var(--color-mute);
+    border-radius: var(--rounded-md);
+    padding: 16px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    position: relative;
+    z-index: 1;
+  }
+  nav.toc a { color: var(--color-ink); text-decoration: none; font-size: 14px; font-weight: 600; }
+  nav.toc a:hover { color: var(--color-primary); }
+
+  main { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  section { margin-bottom: 56px; }
+  section h2 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--color-mute);
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+  section h3 { font-size: 18px; font-weight: 700; margin: 28px 0 12px; }
+  p { color: var(--color-ink-soft); }
+
+  .card {
+    background: var(--color-canvas-soft);
+    border-radius: var(--rounded-md);
+    padding: 24px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .card.diagram { background: var(--color-canvas); border: 1px solid var(--color-mute); }
+  .mermaid { display: flex; justify-content: center; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 16px 0; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--color-mute); }
+  th { background: var(--color-canvas-soft); font-family: var(--font-display); font-weight: 500; }
+  code { background: var(--color-canvas-soft); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre {
+    background: var(--color-ink);
+    color: var(--color-canvas-soft);
+    padding: 16px 20px;
+    border-radius: var(--rounded-sm);
+    overflow-x: auto;
+    font-size: 13px;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.pass { background: #e6f4ec; color: #1f7a4d; }
+  .badge.fail { background: #fbe9e7; color: #c0392b; }
+  .badge.na { background: var(--color-canvas-soft); color: var(--color-body-mid); }
+
+  footer { text-align: center; padding: 32px; color: var(--color-body-mid); font-size: 13px; }
+  footer a { color: var(--color-body); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <p class="eyebrow">Visual Regression QA Tool</p>
+    <h1>アーキテクチャ &amp; 技術ドキュメント</h1>
+    <p class="tagline">再現性を最大化した上でのシンプルなピクセル差分による回帰検知。SSIM等の知覚的差分アルゴリズムには頼らず、まず撮影を決定的にし、評価はシンプルに保つ。</p>
+    <code class="pipeline">撮影指示 → 撮影画像 → 基準画像 → 差分画像 → 評価結果 → DB</code>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#overview">概要</a>
+  <a href="#system">システム構成</a>
+  <a href="#data-model">データモデル</a>
+  <a href="#sequence-single">単発差分実行</a>
+  <a href="#sequence-batch">一括差分実行</a>
+  <a href="#diff-engine">PixelDiffEngine</a>
+  <a href="#alert-lifecycle">アラート</a>
+  <a href="#api">API仕様</a>
+  <a href="#setup">セットアップ</a>
+  <a href="#tests">テスト</a>
+</nav>
+
+<main>
+
+<section id="overview">
+  <h2>概要</h2>
+  <p>
+    設計書(<code>VisualRegressionQATool_DESIGN.md</code>)は Unity での決定的撮影(Phase 1-2)を含む5フェーズ構成だが、
+    本リポジトリは <strong>Phase 3〜5</strong>(基準画像管理+差分評価・DB永続化・アラート/ビューア)を FastAPI + SQLite のバックエンドと
+    React 19 + Vite のフロントエンドで実装したもの。
+  </p>
+  <table>
+    <thead><tr><th>Phase</th><th>内容</th><th>状態</th></tr></thead>
+    <tbody>
+      <tr><td>Phase 1</td><td>再現性制御レイヤー(Unity C#)</td><td><span class="badge na">対象外</span></td></tr>
+      <tr><td>Phase 2</td><td>撮影パイプライン(Unity C#)</td><td><span class="badge na">対象外</span></td></tr>
+      <tr><td>Phase 3</td><td>基準画像管理+差分評価</td><td><span class="badge pass">実装済み</span></td></tr>
+      <tr><td>Phase 4</td><td>DB永続化+履歴</td><td><span class="badge pass">実装済み</span></td></tr>
+      <tr><td>Phase 5</td><td>アラート+結果ビューア</td><td><span class="badge pass">実装済み</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>機能一覧</h3>
+  <ul>
+    <li>撮影指示(CaptureInstruction)管理</li>
+    <li>撮影画像アップロード + checksumベースのdedupeBLOBストレージ</li>
+    <li>ReferenceStore昇格ワークフロー(承認前の画像は基準として使われない)</li>
+    <li>PixelDiffEngine(<code>per_pixel_tolerance</code> / <code>max_diff_pixels</code> / <code>min_diff_region_pixels</code>)</li>
+    <li>単発 / 一括(バッチ)差分実行</li>
+    <li>first-bad-commitクエリ</li>
+    <li>IAlertSink抽象化(Noop / Webhook / GitHub Issue)</li>
+    <li>差分ビューアWeb UI(サイドバイサイド / オーバーレイ)</li>
+  </ul>
+</section>
+
+<section id="system">
+  <h2>システム構成</h2>
+  <div class="card diagram">
+    <pre class="mermaid">
+flowchart LR
+    subgraph Frontend["React 19 + Vite (frontend/)"]
+        UI[App.tsx 状態管理]
+        IP[InstructionPanel]
+        CP[CapturePanel + DiffSettings]
+        RH[RunHistory]
+        DV[DiffViewer]
+    end
+    subgraph Backend["FastAPI (backend/app/)"]
+        R1[instructions router]
+        R2[captures router]
+        R3[references router]
+        R4["diffs router (run / run-batch)"]
+        R5[runs router]
+        Engine[PixelDiffEngine]
+        Repo[repository.py]
+        Alert[IAlertSink]
+    end
+    DB[(SQLite)]
+    Blob[(BlobStore)]
+    GH[GitHub Issues API]
+    WH[Webhook]
+
+    UI --> IP & CP & RH & DV
+    IP --> R1
+    CP --> R2 & R3 & R4
+    RH --> R5
+    DV --> R2 & R3 & R4
+    R2 --> Blob
+    R4 --> Engine
+    R4 --> Blob
+    R1 & R2 & R3 & R4 --> Repo --> DB
+    R4 --> Alert
+    Alert -.-> GH
+    Alert -.-> WH
+    </pre>
+  </div>
+</section>
+
+<section id="data-model">
+  <h2>データモデル(ER図)</h2>
+  <p>外部キーは全て <code>NOT NULL</code>。「CaptureInstruction → CapturedImage → DiffImage → EvaluationResult」の一直線チェーンを崩さない設計。</p>
+  <div class="card diagram">
+    <pre class="mermaid">
+erDiagram
+    CAPTURE_INSTRUCTION ||--o{ CAPTURED_IMAGE : "撮影する"
+    CAPTURED_IMAGE ||--o{ REFERENCE_IMAGE : "承認されると昇格"
+    CAPTURE_INSTRUCTION ||--o{ REFERENCE_IMAGE : "紐づく"
+    CAPTURED_IMAGE ||--o{ DIFF_IMAGE : "captured側"
+    REFERENCE_IMAGE ||--o{ DIFF_IMAGE : "reference側"
+    DIFF_IMAGE ||--|| EVALUATION_RESULT : "評価される"
+    CAPTURE_INSTRUCTION ||--o{ ALERT_ISSUE : "追跡"
+    EVALUATION_RESULT ||--o{ ALERT_ISSUE : "fail時に発報"
+
+    CAPTURE_INSTRUCTION {
+        text instruction_id PK
+        text scene_or_level_id
+        int frame_rate
+        int seed
+    }
+    CAPTURED_IMAGE {
+        text captured_image_id PK
+        text instruction_id FK
+        text build_version
+        text checksum
+        text image_path
+    }
+    REFERENCE_IMAGE {
+        text reference_image_id PK
+        text captured_image_id FK
+        int is_active
+    }
+    DIFF_IMAGE {
+        text diff_image_id PK
+        text captured_image_id FK
+        text reference_image_id FK
+        int diff_pixel_count
+    }
+    EVALUATION_RESULT {
+        text evaluation_result_id PK
+        text diff_image_id FK
+        text verdict
+    }
+    ALERT_ISSUE {
+        text alert_issue_id PK
+        text instruction_id FK
+        text status
+    }
+    </pre>
+  </div>
+</section>
+
+<section id="sequence-single">
+  <h2>単発差分実行のシーケンス</h2>
+  <div class="card diagram">
+    <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant UI as React UI
+    participant API as POST /api/diffs/run
+    participant Engine as PixelDiffEngine
+    participant Blob as BlobStore
+    participant DB as SQLite
+    participant Sink as IAlertSink
+
+    User->>UI: 「差分実行」
+    UI->>API: captured_image_id + diff設定
+    API->>DB: get_captured_image / get_active_reference_image
+    API->>Blob: read(captured), read(reference)
+    API->>Engine: compare_bytes(tolerance, max_diff_pixels, min_diff_region_pixels)
+    Engine-->>API: DiffResult
+    API->>Blob: put(diff_image PNG)
+    API->>DB: create_diff_image → create_evaluation_result
+    alt verdict = fail
+        API->>DB: find_open_alert_issue
+        API->>Sink: notify_failure
+        API->>DB: create_alert_issue
+    else verdict = pass
+        API->>DB: close_open_alert_issues
+        API->>Sink: notify_recovery
+    end
+    API-->>UI: DiffRunResult
+    </pre>
+  </div>
+</section>
+
+<section id="sequence-batch">
+  <h2>一括差分実行のシーケンス</h2>
+  <p>1件の失敗が他の項目に影響しないことが要点。<code>/run</code> と <code>/run-batch</code> は共通ロジック <code>_execute_diff_run()</code> を共有する。</p>
+  <div class="card diagram">
+    <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant UI as React UI
+    participant API as POST /api/diffs/run-batch
+    participant Core as _execute_diff_run()
+
+    User->>UI: 複数選択→「まとめて差分実行」
+    UI->>API: captured_image_ids[]
+    loop 各ID
+        API->>Core: 単発差分ロジック
+        alt 成功
+            Core-->>API: DiffRunResult
+        else 失敗
+            Core-->>API: DiffRunError
+            Note over API: このitemのみ失敗記録、継続
+        end
+    end
+    API-->>UI: results[]
+    UI-->>User: "N件成功 / M件失敗"
+    </pre>
+  </div>
+</section>
+
+<section id="diff-engine">
+  <h2>PixelDiffEngineの判定フロー</h2>
+  <p><code>min_diff_region_pixels</code>は類似度スコアではなく、厳密な画素差分マスクに対する連結成分ベースの後処理(ノイズ除去)である。</p>
+  <div class="card diagram">
+    <pre class="mermaid">
+flowchart TD
+    A[captured / reference バイト列] --> B{解像度一致?}
+    B -- No --> C[ImageDimensionMismatchError]
+    B -- Yes --> D[RGB各チャンネルの絶対差を計算]
+    D --> E{差 > per_pixel_tolerance?}
+    E -- No --> F[diffなし]
+    E -- Yes --> G[diff_maskに記録]
+    F --> H
+    G --> H{min_diff_region_pixels > 1?}
+    H -- No --> I[diff_pixel_countを集計]
+    H -- Yes --> J[scipy.ndimage.labelで8連結ラベリング]
+    J --> K[サイズ未満の塊を除去]
+    K --> I
+    I --> L{diff_pixel_count <= max_diff_pixels?}
+    L -- Yes --> M[verdict = pass]
+    L -- No --> N[verdict = fail]
+    </pre>
+  </div>
+</section>
+
+<section id="alert-lifecycle">
+  <h2>アラートのライフサイクル</h2>
+  <div class="card diagram">
+    <pre class="mermaid">
+stateDiagram-v2
+    [*] --> NoOpenAlert
+    NoOpenAlert --> Open: fail かつ 既存openなし / notify_failure
+    Open --> Open: fail かつ 既存openあり / 重複防止
+    Open --> NoOpenAlert: pass / notify_recovery して close
+    NoOpenAlert --> NoOpenAlert: pass（何もしない）
+    </pre>
+  </div>
+</section>
+
+<section id="api">
+  <h2>API仕様</h2>
+  <table>
+    <thead><tr><th>メソッド</th><th>パス</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/instructions</code></td><td>CaptureInstruction作成</td></tr>
+      <tr><td>GET</td><td><code>/api/instructions</code></td><td>一覧</td></tr>
+      <tr><td>POST</td><td><code>/api/captures</code></td><td>撮影画像アップロード</td></tr>
+      <tr><td>DELETE</td><td><code>/api/captures/{id}</code></td><td>削除(履歴保護あり)</td></tr>
+      <tr><td>POST</td><td><code>/api/references/promote</code></td><td>Reference昇格</td></tr>
+      <tr><td>POST</td><td><code>/api/diffs/run</code></td><td>単発差分実行</td></tr>
+      <tr><td>POST</td><td><code>/api/diffs/run-batch</code></td><td>一括差分実行</td></tr>
+      <tr><td>GET</td><td><code>/api/diffs/{id}/image</code></td><td>差分ハイライト画像</td></tr>
+      <tr><td>GET</td><td><code>/api/runs</code></td><td>実行履歴一覧</td></tr>
+      <tr><td>GET</td><td><code>/api/runs/first-bad-commit/{instruction_id}</code></td><td>first-bad-commitクエリ</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="setup">
+  <h2>セットアップ</h2>
+  <h3>バックエンド</h3>
+  <pre><code>cd backend
+uv sync --dev
+uv run uvicorn app.main:app --port 8000 --reload</code></pre>
+  <h3>フロントエンド</h3>
+  <pre><code>cd frontend
+npm install
+npm run dev</code></pre>
+</section>
+
+<section id="tests">
+  <h2>テスト</h2>
+  <p>バックエンド pytest 37件。<code>uv run pytest -q</code> で実行。</p>
+  <table>
+    <thead><tr><th>ファイル</th><th>検証内容</th></tr></thead>
+    <tbody>
+      <tr><td><code>test_diff_engine.py</code></td><td>厳密比較・ハイライト精度・ノイズフィルタ・解像度不一致</td></tr>
+      <tr><td><code>test_storage.py</code></td><td>checksum dedupe</td></tr>
+      <tr><td><code>test_repository.py</code></td><td>チェーン整合性・外部キー制約</td></tr>
+      <tr><td><code>test_queries.py</code></td><td>first-bad-commit</td></tr>
+      <tr><td><code>test_alert_sink.py</code></td><td>Issue作成/重複防止/自動クローズ</td></tr>
+      <tr><td><code>test_delete_captured_image.py</code></td><td>削除の履歴保護</td></tr>
+      <tr><td><code>test_api_integration.py</code></td><td>E2Eフルパイプライン</td></tr>
+      <tr><td><code>test_diff_batch.py</code></td><td>一括実行・部分失敗の分離</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  詳細は <a href="../README.md">README.md</a> / <a href="ARCHITECTURE.md">ARCHITECTURE.md</a> / <a href="TECHNICAL_GUIDE.md">TECHNICAL_GUIDE.md</a> を参照。
+</footer>
+
+</body>
+</html>
