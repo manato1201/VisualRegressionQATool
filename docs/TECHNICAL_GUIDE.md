@@ -1,6 +1,6 @@
 # 技術解説書
 
-図表は [ARCHITECTURE.md](ARCHITECTURE.md)、セットアップは [README.md](../README.md) を参照。本書はモジュール単位の実装意図・アルゴリズム・API仕様・テスト戦略をまとめる。
+図表は [ARCHITECTURE.md](ARCHITECTURE.md)、セットアップは [README.md](../README.md) を参照。本書はモジュール単位の実装意図・アルゴリズム・API仕様・テスト戦略をまとめる。Unity/Houdini連携の共通インターフェースについては [CAPTURE_AGENT_DESIGN.md](CAPTURE_AGENT_DESIGN.md) を参照。
 
 ## 1. 設計方針の要約
 
@@ -170,5 +170,6 @@ Unity側の決定的レンダリング出力(Phase 1-2、可逆圧縮PNG)を主�
 
 - `verdict = 'flaky'`はDBスキーマ上サポートされているが、単発の決定的比較からは自動生成されない(複数回実行して結果が安定しないことを検知する仕組みは未実装)。
 - SQLite→Postgres移行(設計書の想定)は未実施。スキーマはSQL標準に近い形で書いているため大きな障害はない想定。
-- Unity側Phase 1-2(`DeterminismController` / `SeededRandomService` / `JitterOverride` / `InputPlaybackDriver` / `CaptureRunner`)は本リポジトリの対象外。
+- Unity側Phase 1-2(`DeterminismController` / `SeededRandomService` / `JitterOverride` / `InputPlaybackDriver` / `CaptureRunner`)本体は本リポジトリの対象外。ただし`unity_capture_agent/`はそれらを呼び出す側の「橋渡し」としてのインターフェースは用意している(`Prepare()`フックに実際の決定性制御を実装する想定)。
+- `unity_capture_agent/`(C#)はUnity未インストールのためこのリポジトリ内ではコンパイル・実行検証していない。`capture_agents/`(Python/Houdini版)はpytestで検証済みだが、`houdini_agent.py`自体もHoudini未インストールのため`hou`呼び出し部分は未実機検証(インポートガードのみテスト済み)。
 - `GitHubIssueAlertSink`はGitHub REST APIをそのまま呼び出す実装で、レート制限・リトライは未考慮。

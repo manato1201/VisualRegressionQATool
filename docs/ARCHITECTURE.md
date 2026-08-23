@@ -2,9 +2,12 @@
 
 [README.md](../README.md) / [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) と合わせて参照。GitHub上ではMermaidブロックがそのまま図として描画される。
 
+配色は役割ごとに固定している: 🟦 フロントエンド(インディゴ) / 🟩 バックエンドAPI(エメラルド) / 🟧 コアロジック(アンバー) / 🔵 ストレージ(スカイ) / 🟥 外部連携(ローズ、破線)。
+
 ## 1. システム構成
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eef2ff', 'primaryBorderColor': '#6366f1', 'primaryTextColor': '#312e81', 'lineColor': '#94a3b8', 'fontFamily': 'Inter, sans-serif' }}}%%
 flowchart LR
     subgraph Frontend["React 19 + Vite (frontend/)"]
         UI[App.tsx<br/>状態管理]
@@ -48,6 +51,21 @@ flowchart LR
     R4 --> Alert
     Alert -.-> GH
     Alert -.-> WH
+
+    classDef frontend fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+    classDef router fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+    classDef core fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,color:#78350f;
+    classDef storage fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
+    classDef external fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337,stroke-dasharray: 3 3;
+
+    class UI,IP,CP,RH,DV,GS frontend;
+    class R1,R2,R3,R4,R5 router;
+    class Engine,Repo,Queries,Alert core;
+    class DB,Blob storage;
+    class GH,WH external;
+
+    style Frontend fill:#f5f7ff,stroke:#c7d2fe,stroke-width:1px;
+    style Backend fill:#f0fdf9,stroke:#a7f3d0,stroke-width:1px;
 ```
 
 ## 2. データモデル(ER図)
@@ -55,6 +73,7 @@ flowchart LR
 Phase 4設計の「CaptureInstruction → CapturedImage → DiffImage → EvaluationResult」の一直線チェーンに、Phase 3の`ReferenceStore`昇格ワークフロー用テーブル(`REFERENCE_IMAGE`)とPhase 5のアラート追跡用テーブル(`ALERT_ISSUE`)を追加したもの。外部キーは全てNOT NULL(チェーンを曖昧にしない、というPhase 0のアンチパターン回避方針を反映)。
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f9ff', 'primaryBorderColor': '#0284c7', 'primaryTextColor': '#0c4a6e', 'lineColor': '#94a3b8', 'fontFamily': 'Inter, sans-serif' }}}%%
 erDiagram
     CAPTURE_INSTRUCTION ||--o{ CAPTURED_IMAGE : "撮影する"
     CAPTURED_IMAGE ||--o{ REFERENCE_IMAGE : "承認されると昇格"
@@ -124,6 +143,14 @@ erDiagram
 ## 3. 単発差分実行のシーケンス
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+    'actorBkg': '#eef2ff', 'actorBorder': '#6366f1', 'actorTextColor': '#312e81', 'actorLineColor': '#c7d2fe',
+    'signalColor': '#475569', 'signalTextColor': '#1e293b',
+    'labelBoxBkgColor': '#ecfdf5', 'labelBoxBorderColor': '#10b981', 'labelTextColor': '#065f46',
+    'noteBkgColor': '#fffbeb', 'noteBorderColor': '#f59e0b', 'noteTextColor': '#78350f',
+    'activationBkgColor': '#f0f9ff', 'activationBorderColor': '#0284c7',
+    'fontFamily': 'Inter, sans-serif'
+}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -163,6 +190,13 @@ sequenceDiagram
 1件の失敗が他の項目の処理を止めないことが要点。`/run`と`/run-batch`は`_execute_diff_run()`という共通ロジックを共有し、`/run-batch`側だけが`_DiffRunError`を握りつぶして結果配列に積む。
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+    'actorBkg': '#eef2ff', 'actorBorder': '#6366f1', 'actorTextColor': '#312e81', 'actorLineColor': '#c7d2fe',
+    'signalColor': '#475569', 'signalTextColor': '#1e293b',
+    'labelBoxBkgColor': '#ecfdf5', 'labelBoxBorderColor': '#10b981', 'labelTextColor': '#065f46',
+    'noteBkgColor': '#fffbeb', 'noteBorderColor': '#f59e0b', 'noteTextColor': '#78350f',
+    'fontFamily': 'Inter, sans-serif'
+}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -188,9 +222,10 @@ sequenceDiagram
 
 ## 5. PixelDiffEngineの判定フロー
 
-SSIM等の知覚的差分は採用せず、あくまで「厳密なピクセル差分＋任意の後処理フィルタ」に留める(Phase 0 / Phase 3の設計方針)。`min_diff_region_pixels`による連結成分フィルタは類似度スコアではなく、あくまで「差分ピクセルが何個繋がっているか」という幾何的な後処理であることに注意。
+SSIM等の知覚的差分は採用せず、あくまで「厳密なピクセル差分＋任意の後処理フィルタ」に留める(Phase 0 / Phase 3の設計方針)。`min_diff_region_pixels`による連結成分フィルタは類似度スコアではなく、あくまで「差分ピクセルが何個繋がっているか」という幾何的な後処理であることに注意。分岐(紫)・処理(青)・エラー/Fail(赤)・Pass(緑)で色分け。
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f9ff', 'primaryBorderColor': '#0284c7', 'primaryTextColor': '#0c4a6e', 'lineColor': '#94a3b8', 'fontFamily': 'Inter, sans-serif' }}}%%
 flowchart TD
     A[captured / reference 画像バイト列] --> B{解像度が一致?}
     B -- No --> C[ImageDimensionMismatchError<br/>tolerance では誤魔化さない]
@@ -208,17 +243,72 @@ flowchart TD
     L -- Yes --> M[verdict = pass]
     L -- No --> N[verdict = fail]
     M & N --> O[ハイライト画像を生成して返す]
+
+    classDef decision fill:#f5f3ff,stroke:#7c3aed,stroke-width:1.5px,color:#4c1d95;
+    classDef process fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
+    classDef errorNode fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337;
+    classDef passNode fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#065f46;
+    classDef failNode fill:#fef2f2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
+
+    class B,E,H,L decision;
+    class A,D,F,G,I,J,K,O process;
+    class C errorNode;
+    class M passNode;
+    class N failNode;
 ```
 
 ## 6. アラートのライフサイクル(状態遷移)
 
-`Research-Collector`の「失敗時ラベル付きIssue自動作成→復旧時自動クローズ」パターンを踏襲。
+`Research-Collector`の「失敗時ラベル付きIssue自動作成→復旧時自動クローズ」パターンを踏襲。openは赤(要対応)、no-open-alertは緑(健全)。
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ecfdf5', 'primaryBorderColor': '#059669', 'primaryTextColor': '#065f46', 'lineColor': '#94a3b8', 'fontFamily': 'Inter, sans-serif' }}}%%
 stateDiagram-v2
     [*] --> NoOpenAlert
     NoOpenAlert --> Open: verdict=fail かつ 既存openなし\n→ notify_failure()
     Open --> Open: verdict=fail かつ 既存openあり\n→ 重複防止、何もしない
     Open --> NoOpenAlert: verdict=pass\n→ notify_recovery() して close
     NoOpenAlert --> NoOpenAlert: verdict=pass（何もしない）
+
+    classDef openState fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px,color:#7f1d1d;
+    classDef noAlertState fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
+
+    class Open openState
+    class NoOpenAlert noAlertState
+```
+
+## 7. CaptureAgent共通インターフェース(Unity/Houdini連携)
+
+詳細は [CAPTURE_AGENT_DESIGN.md](CAPTURE_AGENT_DESIGN.md)。サーバー側API(`/api/captures` `/api/diffs/run`)は変更せず、各エンジン側に立つ薄いエージェントが同じHTTP契約を満たすことで、既存のPhase 3-5パイプラインにそのまま乗る。Unity(インディゴ)・Houdini(オレンジ)・共通バックエンド(エメラルド)で色分け。
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eef2ff', 'primaryBorderColor': '#6366f1', 'primaryTextColor': '#312e81', 'lineColor': '#94a3b8', 'fontFamily': 'Inter, sans-serif' }}}%%
+flowchart LR
+    subgraph Unity["Unity (C#)"]
+        UA[UnityCaptureAgent]
+    end
+    subgraph Houdini["Houdini (Python / hou)"]
+        HA[HoudiniCaptureAgent]
+    end
+
+    UA -->|"prepare() → capture()"| UF[RawFrame]
+    HA -->|"prepare() → capture()"| HF[RawFrame]
+
+    UF --> BC1[BackendClient]
+    HF --> BC2[BackendClient]
+
+    BC1 --> API["POST /api/captures\nPOST /api/diffs/run"]
+    BC2 --> API
+    API --> Existing["既存バックエンド\n(変更なし)"]
+
+    classDef unity fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+    classDef houdini fill:#fff7ed,stroke:#ea580c,stroke-width:1.5px,color:#7c2d12;
+    classDef backend fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+
+    class UA,UF unity;
+    class HA,HF houdini;
+    class BC1,BC2,API,Existing backend;
+
+    style Unity fill:#f5f7ff,stroke:#c7d2fe,stroke-width:1px;
+    style Houdini fill:#fff7ed,stroke:#fed7aa,stroke-width:1px;
 ```

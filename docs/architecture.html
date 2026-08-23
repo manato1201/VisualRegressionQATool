@@ -141,6 +141,7 @@
   <a href="#sequence-batch">一括差分実行</a>
   <a href="#diff-engine">PixelDiffEngine</a>
   <a href="#alert-lifecycle">アラート</a>
+  <a href="#capture-agent">CaptureAgent</a>
   <a href="#api">API仕様</a>
   <a href="#setup">セットアップ</a>
   <a href="#tests">テスト</a>
@@ -183,6 +184,7 @@
   <h2>システム構成</h2>
   <div class="card diagram">
     <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eef2ff', 'primaryBorderColor': '#6366f1', 'primaryTextColor': '#312e81', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 flowchart LR
     subgraph Frontend["React 19 + Vite (frontend/)"]
         UI[App.tsx 状態管理]
@@ -218,6 +220,21 @@ flowchart LR
     R4 --> Alert
     Alert -.-> GH
     Alert -.-> WH
+
+    classDef frontend fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+    classDef router fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+    classDef core fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,color:#78350f;
+    classDef storage fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
+    classDef external fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337,stroke-dasharray: 3 3;
+
+    class UI,IP,CP,RH,DV frontend;
+    class R1,R2,R3,R4,R5 router;
+    class Engine,Repo,Alert core;
+    class DB,Blob storage;
+    class GH,WH external;
+
+    style Frontend fill:#f5f7ff,stroke:#c7d2fe,stroke-width:1px;
+    style Backend fill:#f0fdf9,stroke:#a7f3d0,stroke-width:1px;
     </pre>
   </div>
 </section>
@@ -227,6 +244,7 @@ flowchart LR
   <p>外部キーは全て <code>NOT NULL</code>。「CaptureInstruction → CapturedImage → DiffImage → EvaluationResult」の一直線チェーンを崩さない設計。</p>
   <div class="card diagram">
     <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f9ff', 'primaryBorderColor': '#0284c7', 'primaryTextColor': '#0c4a6e', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 erDiagram
     CAPTURE_INSTRUCTION ||--o{ CAPTURED_IMAGE : "撮影する"
     CAPTURED_IMAGE ||--o{ REFERENCE_IMAGE : "承認されると昇格"
@@ -279,6 +297,14 @@ erDiagram
   <h2>単発差分実行のシーケンス</h2>
   <div class="card diagram">
     <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': {
+    'actorBkg': '#eef2ff', 'actorBorder': '#6366f1', 'actorTextColor': '#312e81', 'actorLineColor': '#c7d2fe',
+    'signalColor': '#475569', 'signalTextColor': '#1e293b',
+    'labelBoxBkgColor': '#ecfdf5', 'labelBoxBorderColor': '#10b981', 'labelTextColor': '#065f46',
+    'noteBkgColor': '#fffbeb', 'noteBorderColor': '#f59e0b', 'noteTextColor': '#78350f',
+    'activationBkgColor': '#f0f9ff', 'activationBorderColor': '#0284c7',
+    'fontFamily': 'system-ui, sans-serif'
+}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -314,6 +340,13 @@ sequenceDiagram
   <p>1件の失敗が他の項目に影響しないことが要点。<code>/run</code> と <code>/run-batch</code> は共通ロジック <code>_execute_diff_run()</code> を共有する。</p>
   <div class="card diagram">
     <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': {
+    'actorBkg': '#eef2ff', 'actorBorder': '#6366f1', 'actorTextColor': '#312e81', 'actorLineColor': '#c7d2fe',
+    'signalColor': '#475569', 'signalTextColor': '#1e293b',
+    'labelBoxBkgColor': '#ecfdf5', 'labelBoxBorderColor': '#10b981', 'labelTextColor': '#065f46',
+    'noteBkgColor': '#fffbeb', 'noteBorderColor': '#f59e0b', 'noteTextColor': '#78350f',
+    'fontFamily': 'system-ui, sans-serif'
+}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -342,6 +375,7 @@ sequenceDiagram
   <p><code>min_diff_region_pixels</code>は類似度スコアではなく、厳密な画素差分マスクに対する連結成分ベースの後処理(ノイズ除去)である。</p>
   <div class="card diagram">
     <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f9ff', 'primaryBorderColor': '#0284c7', 'primaryTextColor': '#0c4a6e', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 flowchart TD
     A[captured / reference バイト列] --> B{解像度一致?}
     B -- No --> C[ImageDimensionMismatchError]
@@ -358,6 +392,18 @@ flowchart TD
     I --> L{diff_pixel_count <= max_diff_pixels?}
     L -- Yes --> M[verdict = pass]
     L -- No --> N[verdict = fail]
+
+    classDef decision fill:#f5f3ff,stroke:#7c3aed,stroke-width:1.5px,color:#4c1d95;
+    classDef process fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
+    classDef errorNode fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337;
+    classDef passNode fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#065f46;
+    classDef failNode fill:#fef2f2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
+
+    class B,E,H,L decision;
+    class A,D,F,G,I,J,K process;
+    class C errorNode;
+    class M passNode;
+    class N failNode;
     </pre>
   </div>
 </section>
@@ -366,12 +412,55 @@ flowchart TD
   <h2>アラートのライフサイクル</h2>
   <div class="card diagram">
     <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ecfdf5', 'primaryBorderColor': '#059669', 'primaryTextColor': '#065f46', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 stateDiagram-v2
     [*] --> NoOpenAlert
     NoOpenAlert --> Open: fail かつ 既存openなし / notify_failure
     Open --> Open: fail かつ 既存openあり / 重複防止
     Open --> NoOpenAlert: pass / notify_recovery して close
     NoOpenAlert --> NoOpenAlert: pass（何もしない）
+
+    classDef openState fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px,color:#7f1d1d;
+    classDef noAlertState fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
+
+    class Open openState
+    class NoOpenAlert noAlertState
+    </pre>
+  </div>
+</section>
+
+<section id="capture-agent">
+  <h2>CaptureAgent共通インターフェース</h2>
+  <p>Unity/Houdini等から既存バックエンドへ撮影画像を送るクライアント側の共通契約。サーバーAPIは無変更。詳細は <code>docs/CAPTURE_AGENT_DESIGN.md</code>。</p>
+  <div class="card diagram">
+    <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eef2ff', 'primaryBorderColor': '#6366f1', 'primaryTextColor': '#312e81', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
+flowchart LR
+    subgraph Unity["Unity (C#)"]
+        UA[UnityCaptureAgent]
+    end
+    subgraph Houdini["Houdini (Python / hou)"]
+        HA[HoudiniCaptureAgent]
+    end
+
+    UA -->|prepare→capture| UF[RawFrame]
+    HA -->|prepare→capture| HF[RawFrame]
+    UF --> BC1[BackendClient]
+    HF --> BC2[BackendClient]
+    BC1 --> API["POST /api/captures, /api/diffs/run"]
+    BC2 --> API
+    API --> Existing[既存バックエンド 変更なし]
+
+    classDef unity fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
+    classDef houdini fill:#fff7ed,stroke:#ea580c,stroke-width:1.5px,color:#7c2d12;
+    classDef backend fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+
+    class UA,UF unity;
+    class HA,HF houdini;
+    class BC1,BC2,API,Existing backend;
+
+    style Unity fill:#f5f7ff,stroke:#c7d2fe,stroke-width:1px;
+    style Houdini fill:#fff7ed,stroke:#fed7aa,stroke-width:1px;
     </pre>
   </div>
 </section>

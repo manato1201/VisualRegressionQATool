@@ -11,6 +11,7 @@
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — システム構成図・ER図・シーケンス図(Mermaid)
 - [docs/TECHNICAL_GUIDE.md](docs/TECHNICAL_GUIDE.md) — モジュール別技術解説書
 - [docs/architecture.html](docs/architecture.html) — 上記をまとめたブラウザ閲覧用HTML版
+- [docs/CAPTURE_AGENT_DESIGN.md](docs/CAPTURE_AGENT_DESIGN.md) — Unity/Houdini等のDCCツールからバックエンドへ撮影画像を送るCaptureAgent共通インターフェース設計
 
 ## 実装スコープ
 
@@ -35,6 +36,7 @@
 - **first-bad-commitクエリ** — 同一instructionの履歴から最初にfailしたbuild_versionを特定
 - **IAlertSink抽象化** — `NoopAlertSink` / `WebhookAlertSink` / `GitHubIssueAlertSink`(ラベル検索による重複防止・自動クローズ込み)をコード変更なしで切替可能
 - **差分ビューアWeb UI** — サイドバイサイド/オーバーレイ表示、PASS/FAILの意味表示、撮影画像削除、「はじめに」ガイド
+- **CaptureAgent共通インターフェース** — Unity/Houdini等から`view`(ビューポート)/`comp`(コンポジット出力)を撮影してバックエンドへ送るクライアント側契約。サーバーAPIは無変更([capture_agents/](capture_agents/) = Python/Houdini版、[unity_capture_agent/](unity_capture_agent/) = C#/Unity版)
 
 ## セットアップ
 
@@ -93,10 +95,17 @@ VisualRegressionQATool/
 │   │   ├── routers/         # instructions/captures/references/diffs/runs
 │   │   └── main.py          # FastAPIアプリ組み立て
 │   └── tests/                # pytest 37件
-└── frontend/
-    └── src/
-        ├── theme.css              # Zapier風デザイントークン
-        ├── api.ts                 # APIクライアント
-        ├── App.tsx                # 画面全体の状態管理
-        └── components/            # DiffViewer / CapturePanel / RunHistory 等
+├── frontend/
+│   └── src/
+│       ├── theme.css              # Zapier風デザイントークン
+│       ├── api.ts                 # APIクライアント
+│       ├── App.tsx                # 画面全体の状態管理
+│       └── components/            # DiffViewer / CapturePanel / RunHistory 等
+├── capture_agents/                # CaptureAgent共通インターフェース(Python/Houdini版)
+│   └── capture_agents/
+│       ├── models.py              # CaptureSource / RawFrame
+│       ├── base.py                # CaptureAgent ABC + BackendClient
+│       └── houdini_agent.py       # HoudiniCaptureAgent(要hou)
+└── unity_capture_agent/           # CaptureAgent共通インターフェース(C#/Unity版)
+    └── UnityCaptureAgent.cs
 ```
