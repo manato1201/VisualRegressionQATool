@@ -152,3 +152,105 @@ def test_evaluation_result_verdict_is_constrained_to_known_values(
             (diff.diff_image_id,),
         )
         conn.commit()
+
+
+def _evaluate_build(
+    conn: sqlite3.Connection, *, instruction_id: str, reference_image_id: str, build_version: str, verdict: str
+) -> str:
+    """Test helper: creates a captured_image/diff_image/evaluation_result
+    triple for ``build_version`` with the given verdict, and returns the
+    evaluation_result_id."""
+    captured = repository.create_captured_image(
+        conn,
+        instruction_id=instruction_id,
+        build_version=build_version,
+        checksum=repository.new_id(),
+        image_path="blobs/x/x.png",
+        width=8,
+        height=8,
+        color_space="sRGB",
+    )
+    diff = repository.create_diff_image(
+        conn,
+        captured_image_id=captured.captured_image_id,
+        reference_image_id=reference_image_id,
+        diff_image_path="blobs/d/d.png",
+        diff_pixel_count=0 if verdict == "pass" else 5,
+        diff_percentage=0.0 if verdict == "pass" else 1.0,
+    )
+    evaluation_result = repository.create_evaluation_result(conn, diff_image_id=diff.diff_image_id, verdict=verdict)
+    return evaluation_result.evaluation_result_id
+
+
+def test_reconcile_flaky_verdicts_flips_a_contradictory_pass_fail_pair(conn: sqlite3.Connection):
+    instruction = _make_instruction(conn)
+    baseline = repository.create_captured_image(
+        conn, instruction_id=instruction.instruction_id, build_version="baseline", checksum="base",
+        image_path="blobs/b/base.png", width=8, height=8, color_space="sRGB",
+    )
+    reference = repository.promote_reference_image(
+        conn, captured_image_id=baseline.captured_image_id, instruction_id=instruction.instruction_id, approved_by="qa"
+    )
+
+    pass_id = _evaluate_build(
+        conn, instruction_id=instruction.instruction_id, reference_image_id=reference.reference_image_id,
+        build_version="v1", verdict="pass",
+    )
+    fail_id = _evaluate_build(
+        conn, instruction_id=instruction.instruction_id, reference_image_id=reference.reference_image_id,
+        build_version="v1", verdict="fail",
+    )
+
+    flipped = repository.reconcile_flaky_verdicts(conn, instruction_id=instruction.instruction_id, build_version="v1")
+    assert set(flipped) == {pass_id, fail_id}
+    assert repository.get_evaluation_result(conn, pass_id).verdict == "flaky"
+    assert repository.get_evaluation_result(conn, fail_id).verdict == "flaky"
+
+
+def test_reconcile_flaky_verdicts_does_nothing_when_all_agree(conn: sqlite3.Connection):
+    instruction = _make_instruction(conn)
+    baseline = repository.create_captured_image(
+        conn, instruction_id=instruction.instruction_id, build_version="baseline", checksum="base2",
+        image_path="blobs/b/base2.png", width=8, height=8, color_space="sRGB",
+    )
+    reference = repository.promote_reference_image(
+        conn, captured_image_id=baseline.captured_image_id, instruction_id=instruction.instruction_id, approved_by="qa"
+    )
+
+    id1 = _evaluate_build(
+        conn, instruction_id=instruction.instruction_id, reference_image_id=reference.reference_image_id,
+        build_version="v2", verdict="pass",
+    )
+    id2 = _evaluate_build(
+        conn, instruction_id=instruction.instruction_id, reference_image_id=reference.reference_image_id,
+        build_version="v2", verdict="pass",
+    )
+
+    flipped = repository.reconcile_flaky_verdicts(conn, instruction_id=instruction.instruction_id, build_version="v2")
+    assert flipped == []
+    assert repository.get_evaluation_result(conn, id1).verdict == "pass"
+    assert repository.get_evaluation_result(conn, id2).verdict == "pass"
+
+
+def test_reconcile_flaky_verdicts_ignores_other_build_versions(conn: sqlite3.Connection):
+    instruction = _make_instruction(conn)
+    baseline = repository.create_captured_image(
+        conn, instruction_id=instruction.instruction_id, build_version="baseline", checksum="base3",
+        image_path="blobs/b/base3.png", width=8, height=8, color_space="sRGB",
+    )
+    reference = repository.promote_reference_image(
+        conn, captured_image_id=baseline.captured_image_id, instruction_id=instruction.instruction_id, approved_by="qa"
+    )
+
+    pass_v3 = _evaluate_build(
+        conn, instruction_id=instruction.instruction_id, reference_image_id=reference.reference_image_id,
+        build_version="v3", verdict="pass",
+    )
+    fail_v4 = _evaluate_build(
+        conn, instruction_id=instruction.instruction_id, reference_image_id=reference.reference_image_id,
+        build_version="v4", verdict="fail",
+    )
+
+    assert repository.reconcile_flaky_verdicts(conn, instruction_id=instruction.instruction_id, build_version="v3") == []
+    assert repository.get_evaluation_result(conn, pass_v3).verdict == "pass"
+    assert repository.get_evaluation_result(conn, fail_v4).verdict == "fail"

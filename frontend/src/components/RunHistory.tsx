@@ -55,6 +55,15 @@ export function RunHistory({
           </span>
           {VERDICT_DESCRIPTION.fail}
         </span>
+        <span>
+          <span
+            className="badge-pill badge-flaky"
+            style={{ marginRight: "var(--spacing-xs)" }}
+          >
+            Flaky
+          </span>
+          {VERDICT_DESCRIPTION.flaky}
+        </span>
       </div>
 
       {firstBadCommit && (
