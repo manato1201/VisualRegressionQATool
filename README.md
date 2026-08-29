@@ -37,6 +37,7 @@
 - **IAlertSink抽象化** — `NoopAlertSink` / `WebhookAlertSink` / `GitHubIssueAlertSink`(ラベル検索による重複防止・自動クローズ込み)をコード変更なしで切替可能
 - **差分ビューアWeb UI** — サイドバイサイド/オーバーレイ表示、PASS/FAILの意味表示、撮影画像削除、「はじめに」ガイド
 - **CaptureAgent共通インターフェース** — Unity/Houdini等から`view`(ビューポート)/`comp`(コンポジット出力)を撮影してバックエンドへ送るクライアント側契約。サーバーAPIは無変更([capture_agents/](capture_agents/) = Python/Houdini版、[unity_capture_agent/](unity_capture_agent/) = C#/Unity版)
+- **CI連携サンプル** — [`.github/workflows/visual-regression-example.yml`](.github/workflows/visual-regression-example.yml) + [`capture_agents/examples/ci_diff_check.py`](capture_agents/examples/ci_diff_check.py)。ビルド成果物のPNGを渡すとfail時に非ゼロ終了しジョブを落とす
 
 ## セットアップ
 

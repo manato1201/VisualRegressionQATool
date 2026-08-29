@@ -15,6 +15,31 @@ import httpx
 from .models import CaptureSource, RawFrame
 
 
+class BackendApiError(RuntimeError):
+    """Raised instead of a bare httpx.HTTPStatusError so callers (CI scripts,
+    Houdini/Unity agents) can see the backend's actual error message (e.g.
+    "no reference image available for this instruction") and status code,
+    rather than just "Client error '404 Not Found'"."""
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"{status_code}: {detail}")
+
+
+def _raise_for_status_with_detail(resp: httpx.Response) -> None:
+    if resp.is_success:
+        return
+    detail = resp.text
+    try:
+        body = resp.json()
+        if isinstance(body, dict) and "detail" in body:
+            detail = str(body["detail"])
+    except ValueError:
+        pass
+    raise BackendApiError(resp.status_code, detail)
+
+
 class CaptureAgent(ABC):
     """Implemented once per engine (Houdini here; Unity in C#, same contract)."""
 
@@ -42,7 +67,7 @@ class BackendClient:
 
     def list_instructions(self) -> list[dict[str, Any]]:
         resp = self._client.get("/api/instructions")
-        resp.raise_for_status()
+        _raise_for_status_with_detail(resp)
         return resp.json()
 
     def create_instruction(
@@ -51,7 +76,7 @@ class BackendClient:
         resp = self._client.post(
             "/api/instructions", json={"scene_or_level_id": scene_or_level_id, **kwargs}
         )
-        resp.raise_for_status()
+        _raise_for_status_with_detail(resp)
         return resp.json()
 
     def ensure_instruction(
@@ -100,7 +125,7 @@ class BackendClient:
             },
             files={"file": (filename, frame.data, "image/png")},
         )
-        resp.raise_for_status()
+        _raise_for_status_with_detail(resp)
         return resp.json()
 
     def run_diff(self, captured_image_id: str, **diff_settings: Any) -> dict[str, Any]:
@@ -108,7 +133,7 @@ class BackendClient:
             "/api/diffs/run",
             json={"captured_image_id": captured_image_id, **diff_settings},
         )
-        resp.raise_for_status()
+        _raise_for_status_with_detail(resp)
         return resp.json()
 
     def run_diff_batch(
@@ -118,7 +143,7 @@ class BackendClient:
             "/api/diffs/run-batch",
             json={"captured_image_ids": captured_image_ids, **diff_settings},
         )
-        resp.raise_for_status()
+        _raise_for_status_with_detail(resp)
         return resp.json()
 
     def promote_reference(
@@ -128,7 +153,7 @@ class BackendClient:
             "/api/references/promote",
             json={"captured_image_id": captured_image_id, "approved_by": approved_by},
         )
-        resp.raise_for_status()
+        _raise_for_status_with_detail(resp)
         return resp.json()
 
 

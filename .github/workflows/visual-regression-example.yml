@@ -1,0 +1,87 @@
+# Example CI integration for VisualRegressionQATool.
+#
+# This workflow is a TEMPLATE, not something meant to run unmodified against
+# a real project: replace the "Produce a screenshot" step with your actual
+# Unity/Houdini headless render (or point --image at wherever your build
+# pipeline already drops a PNG), and set `scene-id` per scene you track.
+#
+# It is otherwise a genuinely runnable pipeline: it starts a real backend,
+# uploads an image, and fails the job (non-zero exit + a red ::error::
+# annotation) when a visual regression is detected.
+#
+# IMPORTANT: without a persistent backend, there is nothing to diff future
+# builds against. This example caches backend/data/ (the SQLite DB + BLOB
+# store) across runs on the same branch via actions/cache, so the reference
+# image survives between workflow runs. For real production use, prefer
+# pointing --backend-url at a long-running deployed instance instead (set it
+# via a repository secret) -- see docs/CAPTURE_AGENT_DESIGN.md.
+
+name: Visual Regression Check (example)
+
+on:
+  workflow_dispatch: {}
+  # Uncomment to run on every push once you've adapted the render step below:
+  # push:
+  #   branches: [main]
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Restore visual regression history (SQLite DB + BLOB store)
+        uses: actions/cache@v4
+        with:
+          path: backend/data
+          key: vrqa-db-${{ github.ref_name }}
+          restore-keys: |
+            vrqa-db-
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --dev
+
+      - name: Run backend test suite
+        working-directory: backend
+        run: uv run pytest -q
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/api/health && break
+            sleep 1
+          done
+
+      - name: Install capture_agents dependencies
+        working-directory: capture_agents
+        run: uv sync --dev
+
+      # --- Replace this step with your actual render pipeline ---
+      # Whatever produces the frame to check (a Unity -batchmode run, a
+      # Houdini hython render via capture_agents.houdini_agent, an existing
+      # build artifact, ...) just needs to leave a PNG somewhere on disk.
+      - name: Produce a screenshot to check (placeholder)
+        run: |
+          mkdir -p renders
+          uv run --directory capture_agents --with pillow --with numpy python -c "
+          import numpy as np
+          from PIL import Image
+          arr = np.full((480, 640, 3), (60, 90, 120), dtype=np.uint8)
+          Image.fromarray(arr, mode='RGB').save('renders/outdoors_scene.png')
+          "
+
+      - name: Run visual regression check
+        working-directory: capture_agents
+        run: |
+          uv run --with pillow --with numpy python examples/ci_diff_check.py \
+            --backend-url http://127.0.0.1:8000 \
+            --scene-id OutdoorsScene \
+            --build-version "${{ github.sha }}" \
+            --image ../renders/outdoors_scene.png \
+            --promote-if-missing
