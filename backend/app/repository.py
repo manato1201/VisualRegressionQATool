@@ -5,10 +5,18 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timezone
 
 from . import models
+
+# The backend shares one sqlite3.Connection across all request threads
+# (see app/main.py). This serializes multi-statement "read state, then
+# decide, then write" sequences that would otherwise race under concurrent
+# requests: reference promotion (deactivate-then-activate) and alert
+# dedupe (find-open-issue-then-create) both go through this lock.
+db_write_lock = threading.Lock()
 
 
 def _now() -> str:
@@ -220,23 +228,18 @@ def promote_reference_image(
     """
     reference_image_id = new_id()
     approved_at = _now()
-    conn.execute(
-        "UPDATE reference_image SET is_active = 0 WHERE instruction_id = ? AND is_active = 1",
-        (instruction_id,),
-    )
-    conn.execute(
-        """INSERT INTO reference_image
-           (reference_image_id, captured_image_id, instruction_id, approved_at, approved_by, is_active)
-           VALUES (?, ?, ?, ?, ?, 1)""",
-        (
-            reference_image_id,
-            captured_image_id,
-            instruction_id,
-            approved_at,
-            approved_by,
-        ),
-    )
-    conn.commit()
+    with db_write_lock:
+        conn.execute(
+            "UPDATE reference_image SET is_active = 0 WHERE instruction_id = ? AND is_active = 1",
+            (instruction_id,),
+        )
+        conn.execute(
+            """INSERT INTO reference_image
+               (reference_image_id, captured_image_id, instruction_id, approved_at, approved_by, is_active)
+               VALUES (?, ?, ?, ?, ?, 1)""",
+            (reference_image_id, captured_image_id, instruction_id, approved_at, approved_by),
+        )
+        conn.commit()
     return get_reference_image(conn, reference_image_id)
 
 

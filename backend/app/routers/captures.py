@@ -27,15 +27,23 @@ async def upload_captured_image(
     if not repository.get_capture_instruction(conn, instruction_id):
         raise HTTPException(status_code=404, detail="instruction not found")
 
-    data = await file.read()
+    raw = await file.read()
     try:
-        with Image.open(io.BytesIO(data)) as im:
+        with Image.open(io.BytesIO(raw)) as im:
             width, height = im.size
+            # Normalize storage to PNG regardless of the uploaded container
+            # format/extension. Keying dedupe on the client-supplied
+            # extension (e.g. the same pixels re-uploaded as .png then .jpg)
+            # would otherwise store two separate blobs for identical
+            # content, and orphan one of them on delete (checksum-based
+            # reference counting assumes one path per checksum).
+            canonical_buf = io.BytesIO()
+            im.save(canonical_buf, format="PNG")
+            data = canonical_buf.getvalue()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"invalid image: {exc}") from exc
 
-    ext = (file.filename or "capture.png").rsplit(".", 1)[-1].lower() or "png"
-    checksum, image_path, was_written = blobs.put(data, ext=ext)
+    checksum, image_path, was_written = blobs.put(data, ext="png")
 
     out = repository.create_captured_image(
         conn,
