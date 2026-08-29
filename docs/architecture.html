@@ -177,66 +177,140 @@
     <li>first-bad-commitクエリ</li>
     <li>IAlertSink抽象化(Noop / Webhook / GitHub Issue)</li>
     <li>差分ビューアWeb UI(サイドバイサイド / オーバーレイ)</li>
+    <li>CaptureAgent共通インターフェース(Unity/Houdini連携)</li>
   </ul>
 </section>
 
 <section id="system">
   <h2>システム構成</h2>
+  <p>矢印は全て水平・垂直のみ(斜め線なし)。小さいタイルは白背景+濃紺文字に統一してコントラストを確保している。</p>
   <div class="card diagram">
-    <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eef2ff', 'primaryBorderColor': '#6366f1', 'primaryTextColor': '#312e81', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
-flowchart LR
-    subgraph Frontend["React 19 + Vite (frontend/)"]
-        UI[App.tsx 状態管理]
-        IP[InstructionPanel]
-        CP[CapturePanel + DiffSettings]
-        RH[RunHistory]
-        DV[DiffViewer]
-    end
-    subgraph Backend["FastAPI (backend/app/)"]
-        R1[instructions router]
-        R2[captures router]
-        R3[references router]
-        R4["diffs router (run / run-batch)"]
-        R5[runs router]
-        Engine[PixelDiffEngine]
-        Repo[repository.py]
-        Alert[IAlertSink]
-    end
-    DB[(SQLite)]
-    Blob[(BlobStore)]
-    GH[GitHub Issues API]
-    WH[Webhook]
+    <svg viewBox="0 0 1220 700" width="100%" role="img" aria-label="システム構成図">
+      <style>
+        text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+        .panel-title { font-size: 16px; font-weight: 700; }
+        .panel-sub { font-size: 11px; }
+        .tile-title { font-size: 11px; font-weight: 700; fill: #0f172a; }
+        .tile-caption { font-size: 9.5px; fill: #475569; }
+        .arrow-label { font-size: 11px; fill: #334155; }
+        .actor-title { font-size: 14px; font-weight: 700; }
+        .actor-caption { font-size: 10px; }
+      </style>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#64748b" />
+        </marker>
+      </defs>
 
-    UI --> IP & CP & RH & DV
-    IP --> R1
-    CP --> R2 & R3 & R4
-    RH --> R5
-    DV --> R2 & R3 & R4
-    R2 --> Blob
-    R4 --> Engine
-    R4 --> Blob
-    R1 & R2 & R3 & R4 --> Repo --> DB
-    R4 --> Alert
-    Alert -.-> GH
-    Alert -.-> WH
+      <rect x="0" y="0" width="1220" height="700" fill="#ffffff" />
 
-    classDef frontend fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
-    classDef router fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
-    classDef core fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,color:#78350f;
-    classDef storage fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
-    classDef external fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337,stroke-dasharray: 3 3;
+      <!-- User actor -->
+      <rect x="20" y="140" width="150" height="110" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" />
+      <rect x="35" y="155" width="26" height="26" rx="6" fill="#64748b" />
+      <circle cx="48" cy="164" r="4" fill="#ffffff" />
+      <rect x="41" y="171" width="14" height="9" rx="4" fill="#ffffff" />
+      <text x="70" y="172" class="actor-title" fill="#1e293b">ユーザー</text>
+      <text x="70" y="190" class="actor-caption" fill="#475569">ブラウザで操作</text>
+      <text x="70" y="205" class="actor-caption" fill="#475569">(frontend/ :5173)</text>
 
-    class UI,IP,CP,RH,DV frontend;
-    class R1,R2,R3,R4,R5 router;
-    class Engine,Repo,Alert core;
-    class DB,Blob storage;
-    class GH,WH external;
+      <path d="M170,195 L210,195" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrow)" />
+      <text x="172" y="185" class="arrow-label">HTTPS</text>
 
-    style Frontend fill:#f5f7ff,stroke:#c7d2fe,stroke-width:1px;
-    style Backend fill:#f0fdf9,stroke:#a7f3d0,stroke-width:1px;
-    </pre>
+      <!-- Frontend panel -->
+      <rect x="210" y="60" width="330" height="260" rx="16" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5" />
+      <text x="230" y="88" class="panel-title" fill="#312e81">フロントエンド</text>
+      <text x="230" y="106" class="panel-sub" fill="#4338ca">React 19 + Vite ・ frontend/</text>
+
+      <rect x="230" y="130" width="130" height="70" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.2" />
+      <text x="242" y="160" class="tile-title">App.tsx</text>
+      <text x="242" y="178" class="tile-caption">状態管理</text>
+
+      <rect x="380" y="130" width="130" height="70" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.2" />
+      <text x="392" y="160" class="tile-title">CapturePanel</text>
+      <text x="392" y="178" class="tile-caption">差分実行UI</text>
+
+      <rect x="230" y="214" width="130" height="70" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.2" />
+      <text x="242" y="244" class="tile-title">DiffViewer</text>
+      <text x="242" y="262" class="tile-caption">表示切替</text>
+
+      <rect x="380" y="214" width="130" height="70" rx="8" fill="#ffffff" stroke="#6366f1" stroke-width="1.2" />
+      <text x="392" y="244" class="tile-title">RunHistory</text>
+      <text x="392" y="262" class="tile-caption">実行履歴</text>
+
+      <!-- Backend panel -->
+      <rect x="600" y="60" width="440" height="260" rx="16" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5" />
+      <text x="620" y="88" class="panel-title" fill="#065f46">バックエンドAPI</text>
+      <text x="620" y="106" class="panel-sub" fill="#047857">FastAPI ・ backend/app/ ・ :8000</text>
+
+      <rect x="620" y="130" width="120" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.2" />
+      <text x="632" y="160" class="tile-title">Captures API</text>
+      <text x="632" y="178" class="tile-caption">アップロード</text>
+
+      <rect x="760" y="130" width="120" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.2" />
+      <text x="772" y="160" class="tile-title">Diffs API</text>
+      <text x="772" y="178" class="tile-caption">run/run-batch</text>
+
+      <rect x="900" y="130" width="120" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.2" />
+      <text x="912" y="160" class="tile-title">Runs API</text>
+      <text x="912" y="178" class="tile-caption">実行履歴</text>
+
+      <rect x="620" y="214" width="120" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.2" />
+      <text x="632" y="244" class="tile-title">PixelDiff</text>
+      <text x="632" y="262" class="tile-caption">厳密比較Engine</text>
+
+      <rect x="760" y="214" width="120" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.2" />
+      <text x="772" y="244" class="tile-title">Repository</text>
+      <text x="772" y="262" class="tile-caption">CRUD</text>
+
+      <rect x="900" y="214" width="120" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.2" />
+      <text x="912" y="244" class="tile-title">AlertSink</text>
+      <text x="912" y="262" class="tile-caption">GitHub/Webhook</text>
+
+      <path d="M540,190 L600,190" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrow)" />
+      <text x="546" y="180" class="arrow-label">REST API呼び出し</text>
+
+      <!-- External services -->
+      <rect x="1070" y="90" width="120" height="80" rx="10" fill="#fff1f2" stroke="#e11d48" stroke-width="1.5" stroke-dasharray="4 3" />
+      <text x="1082" y="118" class="tile-title" fill="#881337">GitHub Issues</text>
+      <text x="1082" y="134" class="tile-caption" fill="#9f1239">fail時自動作成</text>
+
+      <rect x="1070" y="190" width="120" height="80" rx="10" fill="#fff1f2" stroke="#e11d48" stroke-width="1.5" stroke-dasharray="4 3" />
+      <text x="1082" y="218" class="tile-title" fill="#881337">Webhook</text>
+      <text x="1082" y="234" class="tile-caption" fill="#9f1239">任意URLへ通知</text>
+
+      <path d="M1040,130 L1070,130" stroke="#64748b" stroke-width="2" fill="none" stroke-dasharray="4 3" marker-end="url(#arrow)" />
+      <path d="M1040,230 L1070,230" stroke="#64748b" stroke-width="2" fill="none" stroke-dasharray="4 3" marker-end="url(#arrow)" />
+
+      <!-- CaptureAgent actor -->
+      <rect x="700" y="400" width="230" height="80" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5" />
+      <rect x="715" y="415" width="26" height="26" rx="6" fill="#ea580c" />
+      <rect x="720" y="423" width="16" height="11" rx="2" fill="#ffffff" />
+      <circle cx="728" cy="428" r="3.5" fill="#ea580c" />
+      <text x="750" y="432" class="actor-title" fill="#7c2d12">Unity / Houdini</text>
+      <text x="750" y="450" class="actor-caption" fill="#7c2d12">prepare() → capture()</text>
+      <text x="750" y="465" class="actor-caption" fill="#7c2d12">CaptureAgent共通インターフェース</text>
+
+      <path d="M815,400 L815,320" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrow)" />
+      <text x="822" y="365" class="arrow-label">POST /api/captures</text>
+      <text x="822" y="378" class="arrow-label">POST /api/diffs/run</text>
+
+      <path d="M970,320 L970,565" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrow)" />
+      <text x="977" y="445" class="arrow-label">読み書き</text>
+
+      <!-- Storage bar -->
+      <rect x="210" y="565" width="800" height="110" rx="16" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.5" />
+      <text x="230" y="590" class="panel-title" fill="#0c4a6e" font-size="15">ローカルストレージ</text>
+
+      <rect x="230" y="605" width="350" height="60" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.5" />
+      <text x="245" y="628" class="tile-title">SQLite (db.py)</text>
+      <text x="245" y="645" class="tile-caption">5テーブル・履歴チェーン</text>
+
+      <rect x="600" y="605" width="350" height="60" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.5" />
+      <text x="615" y="628" class="tile-title">BlobStore</text>
+      <text x="615" y="645" class="tile-caption">checksumベースdedupe</text>
+    </svg>
   </div>
+  <p style="font-size: 13px;" class="badge na">より詳細な粒度(全ルーター内訳)はMermaid版(<a href="ARCHITECTURE.md">ARCHITECTURE.md</a> §1)を参照。</p>
 </section>
 
 <section id="data-model">
@@ -244,7 +318,6 @@ flowchart LR
   <p>外部キーは全て <code>NOT NULL</code>。「CaptureInstruction → CapturedImage → DiffImage → EvaluationResult」の一直線チェーンを崩さない設計。</p>
   <div class="card diagram">
     <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f9ff', 'primaryBorderColor': '#0284c7', 'primaryTextColor': '#0c4a6e', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 erDiagram
     CAPTURE_INSTRUCTION ||--o{ CAPTURED_IMAGE : "撮影する"
     CAPTURED_IMAGE ||--o{ REFERENCE_IMAGE : "承認されると昇格"
@@ -297,14 +370,6 @@ erDiagram
   <h2>単発差分実行のシーケンス</h2>
   <div class="card diagram">
     <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': {
-    'actorBkg': '#eef2ff', 'actorBorder': '#6366f1', 'actorTextColor': '#312e81', 'actorLineColor': '#c7d2fe',
-    'signalColor': '#475569', 'signalTextColor': '#1e293b',
-    'labelBoxBkgColor': '#ecfdf5', 'labelBoxBorderColor': '#10b981', 'labelTextColor': '#065f46',
-    'noteBkgColor': '#fffbeb', 'noteBorderColor': '#f59e0b', 'noteTextColor': '#78350f',
-    'activationBkgColor': '#f0f9ff', 'activationBorderColor': '#0284c7',
-    'fontFamily': 'system-ui, sans-serif'
-}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -340,13 +405,6 @@ sequenceDiagram
   <p>1件の失敗が他の項目に影響しないことが要点。<code>/run</code> と <code>/run-batch</code> は共通ロジック <code>_execute_diff_run()</code> を共有する。</p>
   <div class="card diagram">
     <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': {
-    'actorBkg': '#eef2ff', 'actorBorder': '#6366f1', 'actorTextColor': '#312e81', 'actorLineColor': '#c7d2fe',
-    'signalColor': '#475569', 'signalTextColor': '#1e293b',
-    'labelBoxBkgColor': '#ecfdf5', 'labelBoxBorderColor': '#10b981', 'labelTextColor': '#065f46',
-    'noteBkgColor': '#fffbeb', 'noteBorderColor': '#f59e0b', 'noteTextColor': '#78350f',
-    'fontFamily': 'system-ui, sans-serif'
-}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -375,7 +433,6 @@ sequenceDiagram
   <p><code>min_diff_region_pixels</code>は類似度スコアではなく、厳密な画素差分マスクに対する連結成分ベースの後処理(ノイズ除去)である。</p>
   <div class="card diagram">
     <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f9ff', 'primaryBorderColor': '#0284c7', 'primaryTextColor': '#0c4a6e', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 flowchart TD
     A[captured / reference バイト列] --> B{解像度一致?}
     B -- No --> C[ImageDimensionMismatchError]
@@ -392,18 +449,6 @@ flowchart TD
     I --> L{diff_pixel_count <= max_diff_pixels?}
     L -- Yes --> M[verdict = pass]
     L -- No --> N[verdict = fail]
-
-    classDef decision fill:#f5f3ff,stroke:#7c3aed,stroke-width:1.5px,color:#4c1d95;
-    classDef process fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
-    classDef errorNode fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337;
-    classDef passNode fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#065f46;
-    classDef failNode fill:#fef2f2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
-
-    class B,E,H,L decision;
-    class A,D,F,G,I,J,K process;
-    class C errorNode;
-    class M passNode;
-    class N failNode;
     </pre>
   </div>
 </section>
@@ -412,19 +457,12 @@ flowchart TD
   <h2>アラートのライフサイクル</h2>
   <div class="card diagram">
     <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ecfdf5', 'primaryBorderColor': '#059669', 'primaryTextColor': '#065f46', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 stateDiagram-v2
     [*] --> NoOpenAlert
     NoOpenAlert --> Open: fail かつ 既存openなし / notify_failure
     Open --> Open: fail かつ 既存openあり / 重複防止
     Open --> NoOpenAlert: pass / notify_recovery して close
     NoOpenAlert --> NoOpenAlert: pass（何もしない）
-
-    classDef openState fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px,color:#7f1d1d;
-    classDef noAlertState fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
-
-    class Open openState
-    class NoOpenAlert noAlertState
     </pre>
   </div>
 </section>
@@ -434,7 +472,6 @@ stateDiagram-v2
   <p>Unity/Houdini等から既存バックエンドへ撮影画像を送るクライアント側の共通契約。サーバーAPIは無変更。詳細は <code>docs/CAPTURE_AGENT_DESIGN.md</code>。</p>
   <div class="card diagram">
     <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eef2ff', 'primaryBorderColor': '#6366f1', 'primaryTextColor': '#312e81', 'lineColor': '#94a3b8', 'fontFamily': 'system-ui, sans-serif' }}}%%
 flowchart LR
     subgraph Unity["Unity (C#)"]
         UA[UnityCaptureAgent]
@@ -450,17 +487,6 @@ flowchart LR
     BC1 --> API["POST /api/captures, /api/diffs/run"]
     BC2 --> API
     API --> Existing[既存バックエンド 変更なし]
-
-    classDef unity fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81;
-    classDef houdini fill:#fff7ed,stroke:#ea580c,stroke-width:1.5px,color:#7c2d12;
-    classDef backend fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
-
-    class UA,UF unity;
-    class HA,HF houdini;
-    class BC1,BC2,API,Existing backend;
-
-    style Unity fill:#f5f7ff,stroke:#c7d2fe,stroke-width:1px;
-    style Houdini fill:#fff7ed,stroke:#fed7aa,stroke-width:1px;
     </pre>
   </div>
 </section>
@@ -517,7 +543,7 @@ npm run dev</code></pre>
 </main>
 
 <footer>
-  詳細は <a href="../README.md">README.md</a> / <a href="ARCHITECTURE.md">ARCHITECTURE.md</a> / <a href="TECHNICAL_GUIDE.md">TECHNICAL_GUIDE.md</a> を参照。
+  詳細は <a href="../README.md">README.md</a> / <a href="ARCHITECTURE.md">ARCHITECTURE.md</a> / <a href="TECHNICAL_GUIDE.md">TECHNICAL_GUIDE.md</a> / <a href="CAPTURE_AGENT_DESIGN.md">CAPTURE_AGENT_DESIGN.md</a> を参照。
 </footer>
 
 </body>
