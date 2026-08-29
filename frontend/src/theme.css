@@ -168,6 +168,11 @@ select {
   background: var(--color-flaky-bg);
 }
 
+.badge-na {
+  color: var(--color-body-mid);
+  background: var(--color-canvas-soft);
+}
+
 .eyebrow {
   font-family: var(--font-display);
   font-size: 14px;

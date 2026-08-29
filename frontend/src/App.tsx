@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "./api";
 import { CapturePanel } from "./components/CapturePanel";
+import { Dashboard } from "./components/Dashboard";
 import {
   DEFAULT_DIFF_SETTINGS,
   type DiffSettingsValue,
@@ -17,7 +18,7 @@ import type {
   RunRow,
 } from "./types";
 
-type Tab = "guide" | "tool";
+type Tab = "guide" | "dashboard" | "tool";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("guide");
@@ -203,6 +204,11 @@ export default function App() {
     }
   }
 
+  function handleOpenFromDashboard(instructionId: string) {
+    setSelectedInstructionId(instructionId);
+    setTab("tool");
+  }
+
   async function handleDelete(capturedImageId: string) {
     if (!selectedInstructionId) return;
     setBusyCapturedImageId(capturedImageId);
@@ -244,6 +250,12 @@ export default function App() {
             はじめに
           </button>
           <button
+            className={`btn btn-sm ${tab === "dashboard" ? "btn-secondary" : "btn-tertiary"}`}
+            onClick={() => setTab("dashboard")}
+          >
+            ダッシュボード
+          </button>
+          <button
             className={`btn btn-sm ${tab === "tool" ? "btn-secondary" : "btn-tertiary"}`}
             onClick={() => setTab("tool")}
           >
@@ -270,6 +282,10 @@ export default function App() {
       {tab === "guide" ? (
         <main style={{ padding: "var(--spacing-xl)" }}>
           <GettingStarted />
+        </main>
+      ) : tab === "dashboard" ? (
+        <main style={{ padding: "var(--spacing-xl)" }}>
+          <Dashboard onOpenInstruction={handleOpenFromDashboard} />
         </main>
       ) : (
         <main

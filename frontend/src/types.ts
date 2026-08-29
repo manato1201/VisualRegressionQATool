@@ -96,3 +96,17 @@ export interface DiffBatchItemResult {
 export interface DiffBatchRunResponse {
   results: DiffBatchItemResult[];
 }
+
+export interface DashboardRow {
+  instruction_id: string;
+  scene_or_level_id: string;
+  created_at: string;
+  latest_verdict: Verdict | null;
+  latest_build_version: string | null;
+  latest_evaluated_at: string | null;
+  latest_diff_pixel_count: number | null;
+  latest_diff_percentage: number | null;
+  total_runs: number;
+  has_active_reference: boolean;
+  open_alert_count: number;
+}

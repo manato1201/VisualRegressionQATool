@@ -1,6 +1,7 @@
 import type {
   CaptureInstruction,
   CapturedImage,
+  DashboardRow,
   DiffBatchRunResponse,
   DiffImage,
   DiffRunResult,
@@ -184,4 +185,6 @@ export const api = {
     request<FirstBadCommit>(
       `/api/runs/first-bad-commit/${encodeURIComponent(instructionId)}`,
     ),
+
+  getDashboard: () => request<DashboardRow[]>("/api/runs/dashboard"),
 };
