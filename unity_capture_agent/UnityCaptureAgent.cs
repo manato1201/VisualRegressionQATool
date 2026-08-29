@@ -152,6 +152,7 @@ namespace VisualRegressionQATool.CaptureAgent
                 camera.targetTexture = previousTarget;
                 RenderTexture.active = previousActive;
                 rt.Release();
+                UnityEngine.Object.Destroy(rt);
                 if (tex != null) UnityEngine.Object.Destroy(tex);
             }
         }

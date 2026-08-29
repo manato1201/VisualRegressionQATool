@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "./api";
 import { CapturePanel } from "./components/CapturePanel";
 import {
@@ -43,6 +43,11 @@ export default function App() {
   );
   const [batchBusy, setBatchBusy] = useState(false);
 
+  // Guards against out-of-order responses: if the user switches instructions
+  // again before an in-flight refresh resolves, that stale response must not
+  // overwrite state for the instruction now selected.
+  const latestInstructionRef = useRef<string | null>(null);
+
   const refreshInstructions = useCallback(async () => {
     const list = await api.listInstructions();
     setInstructions(list);
@@ -51,10 +56,14 @@ export default function App() {
 
   const refreshInstructionDetail = useCallback(
     async (instructionId: string) => {
+      latestInstructionRef.current = instructionId;
+      const isStale = () => latestInstructionRef.current !== instructionId;
+
       const [images, runList] = await Promise.all([
         api.listCapturedImages(instructionId),
         api.listRuns(instructionId),
       ]);
+      if (isStale()) return;
       setCapturedImages(images);
       setRuns(runList);
       setSelectedRun(
@@ -67,14 +76,16 @@ export default function App() {
       );
 
       try {
-        setActiveReference(await api.getActiveReference(instructionId));
+        const activeRef = await api.getActiveReference(instructionId);
+        if (!isStale()) setActiveReference(activeRef);
       } catch {
-        setActiveReference(null);
+        if (!isStale()) setActiveReference(null);
       }
       try {
-        setFirstBadCommit(await api.firstBadCommit(instructionId));
+        const fbc = await api.firstBadCommit(instructionId);
+        if (!isStale()) setFirstBadCommit(fbc);
       } catch {
-        setFirstBadCommit(null);
+        if (!isStale()) setFirstBadCommit(null);
       }
     },
     [],

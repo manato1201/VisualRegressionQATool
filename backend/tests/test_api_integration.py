@@ -138,3 +138,39 @@ def test_cannot_delete_captured_image_used_as_reference_via_api(client: TestClie
 
     delete_resp = client.delete(f"/api/captures/{cap['captured_image_id']}")
     assert delete_resp.status_code == 409
+
+
+def test_upload_dedupe_ignores_client_supplied_filename_extension(client: TestClient):
+    """A regression test for a real dedupe bug: storage used to key the blob
+    path on the client-supplied filename extension (not sniffed content), so
+    re-uploading identical bytes under a different filename extension
+    silently created a second blob instead of deduping -- and deleting one
+    later would orphan the other."""
+    instr = client.post(
+        "/api/instructions", json={"scene_or_level_id": "FormatDedupeScene"}
+    ).json()
+    instruction_id = instr["instruction_id"]
+    identical_bytes = _png_bytes((40, 90, 160))
+
+    as_png = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v1"},
+        files={"file": ("v1.png", identical_bytes, "image/png")},
+    ).json()
+    as_jpeg_named = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v2"},
+        files={"file": ("v2.jpg", identical_bytes, "image/png")},
+    ).json()
+
+    assert as_png["checksum"] == as_jpeg_named["checksum"]
+    assert as_png["image_path"] == as_jpeg_named["image_path"]
+    assert as_png["image_path"].endswith(".png")
+    assert as_jpeg_named["dedup_hit"] is True
+
+    # Deleting one must not orphan the shared blob out from under the other.
+    client.delete(f"/api/captures/{as_png['captured_image_id']}")
+    still_there = client.get(
+        f"/api/captures/{as_jpeg_named['captured_image_id']}/image"
+    )
+    assert still_there.status_code == 200

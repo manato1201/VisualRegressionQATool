@@ -56,8 +56,11 @@ def _execute_diff_run(
     if not reference_captured:
         raise _DiffRunError(500, "reference image points at a missing captured image")
 
-    captured_bytes = blobs.read(captured.image_path)
-    reference_bytes = blobs.read(reference_captured.image_path)
+    try:
+        captured_bytes = blobs.read(captured.image_path)
+        reference_bytes = blobs.read(reference_captured.image_path)
+    except OSError as exc:
+        raise _DiffRunError(500, f"blob missing or unreadable: {exc}") from exc
 
     try:
         result = _engine.compare_bytes(
@@ -69,6 +72,11 @@ def _execute_diff_run(
         )
     except ImageDimensionMismatchError as exc:
         raise _DiffRunError(422, str(exc)) from exc
+    except OSError as exc:
+        # Covers PIL.UnidentifiedImageError (a subclass of OSError) for a
+        # corrupt/truncated stored blob -- one bad item must not take down
+        # the rest of a batch run.
+        raise _DiffRunError(422, f"unreadable image data: {exc}") from exc
 
     buf = io.BytesIO()
     result.diff_image.save(buf, format="PNG")
@@ -175,42 +183,53 @@ def _handle_alerting(
     diff_image: models.DiffImageOut,
 ) -> dict | None:
     if evaluation_result.verdict == "fail":
-        existing = repository.find_open_alert_issue(conn, instruction_id)
-        if existing is not None:
-            return {"action": "already-open", "external_ref": existing["external_ref"]}
+        # find-open-issue-then-create is a check-then-act sequence; without
+        # the lock, two concurrent failing runs for the same instruction
+        # could both see "no open issue" and both create one.
+        with repository.db_write_lock:
+            existing = repository.find_open_alert_issue(conn, instruction_id)
+            if existing is not None:
+                return {
+                    "action": "already-open",
+                    "external_ref": existing["external_ref"],
+                }
 
-        instruction = repository.get_capture_instruction(conn, instruction_id)
-        ctx = AlertFailureContext(
-            instruction_id=instruction_id,
-            scene_or_level_id=instruction.scene_or_level_id if instruction else "",
-            build_version=captured.build_version,
-            evaluation_result_id=evaluation_result.evaluation_result_id,
-            verdict=evaluation_result.verdict,
-            diff_pixel_count=diff_image.diff_pixel_count,
-            diff_percentage=diff_image.diff_percentage,
-            diff_image_url=f"/api/diffs/{diff_image.diff_image_id}/image",
-        )
-        external_ref = alert_sink.notify_failure(ctx)
-        if external_ref is None:
-            return None
-        repository.create_alert_issue(
-            conn,
-            instruction_id=instruction_id,
-            evaluation_result_id=evaluation_result.evaluation_result_id,
-            sink_kind=type(alert_sink).__name__,
-            external_ref=external_ref,
-        )
-        return {"action": "opened", "external_ref": external_ref}
+            instruction = repository.get_capture_instruction(conn, instruction_id)
+            ctx = AlertFailureContext(
+                instruction_id=instruction_id,
+                scene_or_level_id=instruction.scene_or_level_id if instruction else "",
+                build_version=captured.build_version,
+                evaluation_result_id=evaluation_result.evaluation_result_id,
+                verdict=evaluation_result.verdict,
+                diff_pixel_count=diff_image.diff_pixel_count,
+                diff_percentage=diff_image.diff_percentage,
+                diff_image_url=f"/api/diffs/{diff_image.diff_image_id}/image",
+            )
+            external_ref = alert_sink.notify_failure(ctx)
+            if external_ref is None:
+                return None
+            repository.create_alert_issue(
+                conn,
+                instruction_id=instruction_id,
+                evaluation_result_id=evaluation_result.evaluation_result_id,
+                sink_kind=type(alert_sink).__name__,
+                external_ref=external_ref,
+            )
+            return {"action": "opened", "external_ref": external_ref}
 
     if evaluation_result.verdict == "pass":
-        closed_rows = repository.close_open_alert_issues(conn, instruction_id)
-        for row in closed_rows:
-            alert_sink.notify_recovery(instruction_id, row["external_ref"])
-        if closed_rows:
-            return {
-                "action": "recovered",
-                "closed": [r["external_ref"] for r in closed_rows],
-            }
+        # Same race shape as the fail branch above: read-open-rows-then-close
+        # must not interleave with another concurrent pass/fail evaluation
+        # for the same instruction, or a recovery could be reported twice.
+        with repository.db_write_lock:
+            closed_rows = repository.close_open_alert_issues(conn, instruction_id)
+            for row in closed_rows:
+                alert_sink.notify_recovery(instruction_id, row["external_ref"])
+            if closed_rows:
+                return {
+                    "action": "recovered",
+                    "closed": [r["external_ref"] for r in closed_rows],
+                }
 
     return None
 

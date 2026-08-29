@@ -117,6 +117,56 @@ def test_batch_isolates_a_single_bad_item_without_aborting_the_rest(client: Test
     assert results[good2["captured_image_id"]]["evaluation_result"]["verdict"] == "fail"
 
 
+def test_batch_isolates_an_unreadable_blob_without_aborting_the_rest(
+    client: TestClient, tmp_path: Path
+):
+    """Regression test: _execute_diff_run used to let OSError/PIL decode
+    errors (e.g. a corrupted or missing blob on disk) escape uncaught, which
+    would abort the whole batch response instead of just that one item."""
+    instruction_id, size = _setup_instruction_with_reference(
+        client, "BatchCorruptBlobScene"
+    )
+
+    good1 = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "good1"},
+        files={"file": ("good1.png", _png_bytes((50, 60, 70), size), "image/png")},
+    ).json()
+    corrupt = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "corrupt"},
+        files={"file": ("corrupt.png", _png_bytes((10, 10, 10), size), "image/png")},
+    ).json()
+    good2 = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "good2"},
+        files={"file": ("good2.png", _png_bytes((250, 0, 0), size), "image/png")},
+    ).json()
+
+    # Simulate on-disk corruption / partial write -- something the API layer
+    # cannot prevent, distinct from an application-level validation error.
+    corrupt_detail = client.get(f"/api/captures/{corrupt['captured_image_id']}").json()
+    (tmp_path / corrupt_detail["image_path"]).write_bytes(b"not a valid image")
+
+    resp = client.post(
+        "/api/diffs/run-batch",
+        json={
+            "captured_image_ids": [
+                good1["captured_image_id"],
+                corrupt["captured_image_id"],
+                good2["captured_image_id"],
+            ]
+        },
+    )
+    assert resp.status_code == 200
+    results = {r["captured_image_id"]: r for r in resp.json()["results"]}
+
+    assert results[good1["captured_image_id"]]["ok"] is True
+    assert results[corrupt["captured_image_id"]]["ok"] is False
+    assert results[corrupt["captured_image_id"]]["error"] is not None
+    assert results[good2["captured_image_id"]]["ok"] is True
+
+
 def test_batch_with_empty_list_returns_empty_results(client: TestClient):
     resp = client.post("/api/diffs/run-batch", json={"captured_image_ids": []})
     assert resp.status_code == 200
