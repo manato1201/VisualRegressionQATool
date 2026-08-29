@@ -174,3 +174,62 @@ def test_upload_dedupe_ignores_client_supplied_filename_extension(client: TestCl
         f"/api/captures/{as_jpeg_named['captured_image_id']}/image"
     )
     assert still_there.status_code == 200
+
+
+def test_diff_run_rejects_size_mismatch_without_allow_center_crop_then_succeeds_with_it(
+    client: TestClient,
+):
+    instr = client.post(
+        "/api/instructions", json={"scene_or_level_id": "ResizedWindowScene"}
+    ).json()
+    instruction_id = instr["instruction_id"]
+
+    reference_cap = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "reference"},
+        files={
+            "file": ("ref.png", _png_bytes((80, 80, 80), size=(64, 48)), "image/png")
+        },
+    ).json()
+    client.post(
+        "/api/references/promote",
+        json={
+            "captured_image_id": reference_cap["captured_image_id"],
+            "approved_by": "qa",
+        },
+    )
+
+    # A slightly smaller capture, e.g. the Game View window resized by a
+    # couple of pixels -- same content, different size.
+    resized_cap = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "resized"},
+        files={
+            "file": (
+                "resized.png",
+                _png_bytes((80, 80, 80), size=(60, 46)),
+                "image/png",
+            )
+        },
+    ).json()
+
+    strict_resp = client.post(
+        "/api/diffs/run", json={"captured_image_id": resized_cap["captured_image_id"]}
+    )
+    assert strict_resp.status_code == 422
+
+    lenient_resp = client.post(
+        "/api/diffs/run",
+        json={
+            "captured_image_id": resized_cap["captured_image_id"],
+            "allow_center_crop": True,
+        },
+    ).json()
+    assert lenient_resp["evaluation_result"]["verdict"] == "pass"
+    assert lenient_resp["diff_image"]["resolution_note"] is not None
+    assert "center-cropped" in lenient_resp["diff_image"]["resolution_note"]
+
+    # The resolution_note must also be visible from the run-history listing.
+    runs = client.get("/api/runs", params={"instruction_id": instruction_id}).json()
+    resized_run = next(r for r in runs if r["build_version"] == "resized")
+    assert resized_run["resolution_note"] is not None

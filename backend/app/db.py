@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS diff_image (
     diff_image_path TEXT NOT NULL,
     diff_pixel_count INTEGER NOT NULL,
     diff_percentage REAL NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    resolution_note TEXT
 );
 
 CREATE TABLE IF NOT EXISTS evaluation_result (
@@ -98,9 +99,27 @@ def connect(db_path: Path | str = DEFAULT_DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+# Ad-hoc migration guard: columns added after a table's original
+# CREATE TABLE IF NOT EXISTS won't retroactively appear in a database file
+# that already exists on disk. Each entry is applied with ALTER TABLE,
+# ignoring the error SQLite raises when the column is already there.
+_COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("diff_image", "resolution_note", "ALTER TABLE diff_image ADD COLUMN resolution_note TEXT"),
+)
+
+
+def _apply_column_migrations(conn: sqlite3.Connection) -> None:
+    for table, column, statement in _COLUMN_MIGRATIONS:
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.execute(statement)
+    conn.commit()
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     conn.commit()
+    _apply_column_migrations(conn)
 
 
 @contextmanager

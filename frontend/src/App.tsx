@@ -157,6 +157,7 @@ export default function App() {
         perPixelTolerance: diffSettings.perPixelTolerance,
         maxDiffPixels: diffSettings.maxDiffPixels,
         minDiffRegionPixels: diffSettings.minDiffRegionPixels,
+        allowCenterCrop: diffSettings.allowCenterCrop,
       });
       await refreshInstructionDetail(selectedInstructionId);
     } catch (e) {
@@ -175,6 +176,7 @@ export default function App() {
         perPixelTolerance: diffSettings.perPixelTolerance,
         maxDiffPixels: diffSettings.maxDiffPixels,
         minDiffRegionPixels: diffSettings.minDiffRegionPixels,
+        allowCenterCrop: diffSettings.allowCenterCrop,
       });
       await refreshInstructionDetail(selectedInstructionId);
 

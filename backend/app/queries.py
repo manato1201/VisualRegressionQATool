@@ -31,6 +31,7 @@ SELECT er.evaluation_result_id AS evaluation_result_id,
        di.diff_pixel_count AS diff_pixel_count,
        di.diff_percentage AS diff_percentage,
        di.reference_image_id AS reference_image_id,
+       di.resolution_note AS resolution_note,
        cap.captured_image_id AS captured_image_id,
        cap.build_version AS build_version,
        ci.instruction_id AS instruction_id,
@@ -79,6 +80,7 @@ def list_runs(
             instruction_id=r["instruction_id"],
             scene_or_level_id=r["scene_or_level_id"],
             reference_image_id=r["reference_image_id"],
+            resolution_note=r["resolution_note"],
         )
         for r in rows
     ]

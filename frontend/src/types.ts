@@ -47,6 +47,7 @@ export interface DiffImage {
   diff_pixel_count: number;
   diff_percentage: number;
   created_at: string;
+  resolution_note: string | null;
 }
 
 export interface EvaluationResult {
@@ -74,6 +75,7 @@ export interface RunRow {
   instruction_id: string;
   scene_or_level_id: string;
   reference_image_id: string;
+  resolution_note: string | null;
 }
 
 export interface FirstBadCommit {

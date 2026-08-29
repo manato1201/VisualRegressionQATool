@@ -179,3 +179,64 @@ def test_dimension_mismatch_raises_instead_of_silently_tolerating():
     engine = PixelDiffEngine()
     with pytest.raises(ImageDimensionMismatchError):
         engine.compare_bytes(_to_bytes(small), _to_bytes(big))
+
+
+def test_dimension_mismatch_still_raises_when_allow_center_crop_is_false():
+    small = _solid_image((0, 0, 0))
+    big = Image.fromarray(np.zeros((HEIGHT + 1, WIDTH, 3), dtype=np.uint8), mode="RGB")
+
+    engine = PixelDiffEngine()
+    with pytest.raises(ImageDimensionMismatchError):
+        engine.compare_bytes(_to_bytes(small), _to_bytes(big), allow_center_crop=False)
+
+
+def test_allow_center_crop_compares_the_shared_center_region():
+    # Reference is the full-size frame; captured is 4px narrower and 2px
+    # shorter, i.e. what a slightly-resized Game View window would produce.
+    reference_arr = np.full((HEIGHT, WIDTH, 3), (100, 100, 100), dtype=np.uint8)
+    # A distinct rectangle placed dead center, so it survives cropping.
+    cy0, cy1 = HEIGHT // 2 - 5, HEIGHT // 2 + 5
+    cx0, cx1 = WIDTH // 2 - 5, WIDTH // 2 + 5
+    reference_arr[cy0:cy1, cx0:cx1] = (200, 50, 50)
+
+    captured_full = reference_arr.copy()
+    # Give the edges (which get cropped away) wildly different content --
+    # if cropping did not happen, these would dominate the diff.
+    captured_full[0, :] = (255, 255, 0)
+    captured_full[:, 0] = (255, 255, 0)
+
+    reference = Image.fromarray(reference_arr, mode="RGB")
+    captured_cropped_size = Image.fromarray(captured_full, mode="RGB").crop(
+        (2, 1, WIDTH - 2, HEIGHT - 1)
+    )
+    assert captured_cropped_size.size == (WIDTH - 4, HEIGHT - 2)
+
+    engine = PixelDiffEngine()
+    result = engine.compare_bytes(
+        _to_bytes(captured_cropped_size),
+        _to_bytes(reference),
+        per_pixel_tolerance=0,
+        max_diff_pixels=0,
+        allow_center_crop=True,
+    )
+
+    # The shared center region is identical, so once both sides are cropped
+    # to the common size the diff should be zero despite the size mismatch.
+    assert result.diff_pixel_count == 0
+    assert result.verdict == "pass"
+    assert result.resolution_note is not None
+    assert "center-cropped" in result.resolution_note
+    assert (
+        str(WIDTH - 4) in result.resolution_note
+        or str(HEIGHT - 2) in result.resolution_note
+    )
+
+
+def test_allow_center_crop_leaves_matching_sizes_untouched():
+    base = _solid_image((10, 20, 30))
+    engine = PixelDiffEngine()
+    result = engine.compare_bytes(
+        _to_bytes(base), _to_bytes(base), allow_center_crop=True
+    )
+    assert result.resolution_note is None
+    assert result.diff_pixel_count == 0
