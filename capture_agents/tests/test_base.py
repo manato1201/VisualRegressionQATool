@@ -3,7 +3,12 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from capture_agents.base import BackendClient, CaptureAgent, run_capture_and_diff
+from capture_agents.base import (
+    BackendApiError,
+    BackendClient,
+    CaptureAgent,
+    run_capture_and_diff,
+)
 from capture_agents.models import CaptureSource, RawFrame
 
 
@@ -110,6 +115,24 @@ def test_run_diff_and_run_diff_batch_post_expected_payloads():
     assert b'"per_pixel_tolerance":10' in seen[0][1]
     assert seen[1][0] == "/api/diffs/run-batch"
     assert b'"min_diff_region_pixels":20' in seen[1][1]
+
+
+def test_run_diff_error_surfaces_the_backend_detail_message_not_a_bare_http_error():
+    """Regression coverage: BackendClient used to call resp.raise_for_status()
+    directly, which discards FastAPI's JSON `detail` body -- callers (CI
+    scripts especially) need the actual reason, not just "404 Not Found"."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            404, json={"detail": "no reference image available for this instruction"}
+        )
+
+    backend = _client_with_handler(handler)
+    with pytest.raises(BackendApiError) as exc_info:
+        backend.run_diff("cap-1")
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "no reference image available for this instruction"
 
 
 def test_run_capture_and_diff_calls_prepare_then_capture_then_uploads_then_diffs():

@@ -29,6 +29,19 @@ uv run --with pillow --with numpy python examples/fake_agent_smoke_test.py
 
 Expect: `pass` on the unchanged frame, `fail` on the changed one, and `first bad build_version = smoke-v3`. Then open the web UI (`frontend/`, `npm run dev`) and look for the `CaptureAgentSmokeTest` instruction to see it in the diff viewer.
 
+## CI integration
+
+`examples/ci_diff_check.py` is a ready-to-use CI step: point it at a backend and an already-rendered PNG, and it exits non-zero (with a `::error::` GitHub Actions annotation) when the verdict is `fail`. See [`../.github/workflows/visual-regression-example.yml`](../.github/workflows/visual-regression-example.yml) for a full, runnable template (it caches `backend/data/` across runs so the reference image persists between CI jobs).
+
+```bash
+python examples/ci_diff_check.py \
+  --backend-url http://localhost:8000 \
+  --scene-id OutdoorsScene \
+  --build-version "$GITHUB_SHA" \
+  --image path/to/screenshot.png \
+  --promote-if-missing   # seed the first run's screenshot as the baseline instead of failing
+```
+
 ## Running inside Houdini
 
 Houdini bundles its own Python interpreter (`hython`), which is the only place `capture_agents.houdini_agent` can import `hou`. Install this package into that interpreter, e.g.:
