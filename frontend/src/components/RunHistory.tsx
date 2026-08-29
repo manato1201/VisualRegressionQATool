@@ -140,6 +140,15 @@ export function RunHistory({
                 </td>
                 <td style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
                   {run.build_version}
+                  {run.resolution_note && (
+                    <span
+                      title={run.resolution_note}
+                      style={{ marginLeft: 6, fontSize: 11, cursor: "help" }}
+                      className="badge-pill badge-flaky"
+                    >
+                      クロップ済
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
                   {run.diff_pixel_count.toLocaleString()}

@@ -4,12 +4,14 @@ export interface DiffSettingsValue {
   perPixelTolerance: number;
   maxDiffPixels: number;
   minDiffRegionPixels: number;
+  allowCenterCrop: boolean;
 }
 
 export const DEFAULT_DIFF_SETTINGS: DiffSettingsValue = {
   perPixelTolerance: 0,
   maxDiffPixels: 0,
   minDiffRegionPixels: 1,
+  allowCenterCrop: false,
 };
 
 interface Props {
@@ -27,7 +29,8 @@ export function DiffSettings({ value, onChange }: Props) {
   const isDefault =
     value.perPixelTolerance === DEFAULT_DIFF_SETTINGS.perPixelTolerance &&
     value.maxDiffPixels === DEFAULT_DIFF_SETTINGS.maxDiffPixels &&
-    value.minDiffRegionPixels === DEFAULT_DIFF_SETTINGS.minDiffRegionPixels;
+    value.minDiffRegionPixels === DEFAULT_DIFF_SETTINGS.minDiffRegionPixels &&
+    value.allowCenterCrop === DEFAULT_DIFF_SETTINGS.allowCenterCrop;
 
   return (
     <div className="card-outline" style={{ padding: "var(--spacing-md) var(--spacing-lg)" }}>
@@ -63,6 +66,19 @@ export function DiffSettings({ value, onChange }: Props) {
             min={1}
             onChange={(v) => update({ minDiffRegionPixels: v })}
           />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 240 }}>
+            <label style={{ fontSize: 13, color: "var(--color-body)", display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={value.allowCenterCrop}
+                onChange={(e) => update({ allowCenterCrop: e.target.checked })}
+              />
+              解像度差を中央クロップで許容
+            </label>
+            <span style={{ fontSize: 11 }} className="text-mute">
+              撮影画像とReferenceの解像度が数px異なる場合でも、中央基準でクロップして共通部分だけを比較します(ウィンドウサイズのわずかなズレ対策)。何が起きたかは実行履歴に記録されます。
+            </span>
+          </div>
           <button className="btn btn-tertiary btn-sm" onClick={() => onChange(DEFAULT_DIFF_SETTINGS)} style={{ alignSelf: "end" }}>
             初期値に戻す
           </button>

@@ -38,6 +38,7 @@ def _execute_diff_run(
     per_pixel_tolerance: int,
     max_diff_pixels: int,
     min_diff_region_pixels: int,
+    allow_center_crop: bool = False,
 ) -> models.DiffRunResult:
     captured = repository.get_captured_image(conn, captured_image_id)
     if not captured:
@@ -69,6 +70,7 @@ def _execute_diff_run(
             per_pixel_tolerance=per_pixel_tolerance,
             max_diff_pixels=max_diff_pixels,
             min_diff_region_pixels=min_diff_region_pixels,
+            allow_center_crop=allow_center_crop,
         )
     except ImageDimensionMismatchError as exc:
         raise _DiffRunError(422, str(exc)) from exc
@@ -89,6 +91,7 @@ def _execute_diff_run(
         diff_image_path=diff_image_path,
         diff_pixel_count=result.diff_pixel_count,
         diff_percentage=result.diff_percentage,
+        resolution_note=result.resolution_note,
     )
     evaluation_result = repository.create_evaluation_result(
         conn, diff_image_id=diff_image.diff_image_id, verdict=result.verdict
@@ -125,6 +128,7 @@ def run_diff(
             per_pixel_tolerance=body.per_pixel_tolerance,
             max_diff_pixels=body.max_diff_pixels,
             min_diff_region_pixels=body.min_diff_region_pixels,
+            allow_center_crop=body.allow_center_crop,
         )
     except _DiffRunError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
@@ -154,6 +158,7 @@ def run_diff_batch(
                 per_pixel_tolerance=body.per_pixel_tolerance,
                 max_diff_pixels=body.max_diff_pixels,
                 min_diff_region_pixels=body.min_diff_region_pixels,
+                allow_center_crop=body.allow_center_crop,
             )
             results.append(
                 models.DiffBatchItemResult(

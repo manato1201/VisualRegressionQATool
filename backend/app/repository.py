@@ -285,13 +285,14 @@ def create_diff_image(
     diff_image_path: str,
     diff_pixel_count: int,
     diff_percentage: float,
+    resolution_note: str | None = None,
 ) -> models.DiffImageOut:
     diff_image_id = new_id()
     created_at = _now()
     conn.execute(
         """INSERT INTO diff_image
-           (diff_image_id, captured_image_id, reference_image_id, diff_image_path, diff_pixel_count, diff_percentage, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           (diff_image_id, captured_image_id, reference_image_id, diff_image_path, diff_pixel_count, diff_percentage, created_at, resolution_note)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             diff_image_id,
             captured_image_id,
@@ -300,6 +301,7 @@ def create_diff_image(
             diff_pixel_count,
             diff_percentage,
             created_at,
+            resolution_note,
         ),
     )
     conn.commit()
@@ -324,6 +326,7 @@ def _row_to_diff_image(row: sqlite3.Row) -> models.DiffImageOut:
         diff_pixel_count=row["diff_pixel_count"],
         diff_percentage=row["diff_percentage"],
         created_at=row["created_at"],
+        resolution_note=row["resolution_note"],
     )
 
 

@@ -130,6 +130,7 @@ export const api = {
       perPixelTolerance?: number;
       maxDiffPixels?: number;
       minDiffRegionPixels?: number;
+      allowCenterCrop?: boolean;
       referenceImageId?: string;
     },
   ) =>
@@ -142,6 +143,7 @@ export const api = {
         per_pixel_tolerance: opts?.perPixelTolerance ?? 0,
         max_diff_pixels: opts?.maxDiffPixels ?? 0,
         min_diff_region_pixels: opts?.minDiffRegionPixels ?? 1,
+        allow_center_crop: opts?.allowCenterCrop ?? false,
       }),
     }),
 
@@ -151,6 +153,7 @@ export const api = {
       perPixelTolerance?: number;
       maxDiffPixels?: number;
       minDiffRegionPixels?: number;
+      allowCenterCrop?: boolean;
       referenceImageId?: string;
     },
   ) =>
@@ -163,6 +166,7 @@ export const api = {
         per_pixel_tolerance: opts?.perPixelTolerance ?? 0,
         max_diff_pixels: opts?.maxDiffPixels ?? 0,
         min_diff_region_pixels: opts?.minDiffRegionPixels ?? 1,
+        allow_center_crop: opts?.allowCenterCrop ?? false,
       }),
     }),
 

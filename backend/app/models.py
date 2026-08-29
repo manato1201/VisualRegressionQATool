@@ -68,6 +68,7 @@ class DiffRunRequest(BaseModel):
     per_pixel_tolerance: int = 0
     max_diff_pixels: int = 0
     min_diff_region_pixels: int = 1
+    allow_center_crop: bool = False
 
 
 class DiffImageOut(BaseModel):
@@ -78,6 +79,7 @@ class DiffImageOut(BaseModel):
     diff_pixel_count: int
     diff_percentage: float
     created_at: str
+    resolution_note: Optional[str] = None
 
 
 class EvaluationResultOut(BaseModel):
@@ -99,6 +101,7 @@ class DiffBatchRunRequest(BaseModel):
     per_pixel_tolerance: int = 0
     max_diff_pixels: int = 0
     min_diff_region_pixels: int = 1
+    allow_center_crop: bool = False
 
 
 class DiffBatchItemResult(BaseModel):
@@ -132,3 +135,4 @@ class RunRow(BaseModel):
     instruction_id: str
     scene_or_level_id: str
     reference_image_id: str
+    resolution_note: Optional[str] = None
