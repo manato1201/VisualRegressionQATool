@@ -17,6 +17,14 @@ def list_runs(
     return queries.list_runs(conn, instruction_id)
 
 
+@router.get("/dashboard", response_model=list[models.DashboardRow])
+def dashboard(conn: sqlite3.Connection = Depends(get_conn)):
+    """One row per tracked scene with its latest verdict, most urgent first
+    -- a cross-instruction health overview rather than the per-instruction
+    detail the rest of this router serves."""
+    return queries.dashboard_summary(conn)
+
+
 @router.get(
     "/first-bad-commit/{instruction_id}", response_model=models.FirstBadCommitOut
 )

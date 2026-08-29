@@ -86,6 +86,68 @@ def list_runs(
     ]
 
 
+DASHBOARD_SQL = """
+WITH ranked_runs AS (
+    SELECT
+        ci.instruction_id AS instruction_id,
+        er.verdict AS verdict,
+        er.evaluated_at AS evaluated_at,
+        cap.build_version AS build_version,
+        di.diff_pixel_count AS diff_pixel_count,
+        di.diff_percentage AS diff_percentage,
+        ROW_NUMBER() OVER (PARTITION BY ci.instruction_id ORDER BY cap.captured_at DESC) AS rn
+    FROM evaluation_result er
+    JOIN diff_image di ON er.diff_image_id = di.diff_image_id
+    JOIN captured_image cap ON di.captured_image_id = cap.captured_image_id
+    JOIN capture_instruction ci ON cap.instruction_id = ci.instruction_id
+)
+SELECT
+    ci.instruction_id AS instruction_id,
+    ci.scene_or_level_id AS scene_or_level_id,
+    ci.created_at AS created_at,
+    rr.verdict AS latest_verdict,
+    rr.evaluated_at AS latest_evaluated_at,
+    rr.build_version AS latest_build_version,
+    rr.diff_pixel_count AS latest_diff_pixel_count,
+    rr.diff_percentage AS latest_diff_percentage,
+    (SELECT COUNT(*) FROM evaluation_result er2
+       JOIN diff_image di2 ON er2.diff_image_id = di2.diff_image_id
+       JOIN captured_image cap2 ON di2.captured_image_id = cap2.captured_image_id
+       WHERE cap2.instruction_id = ci.instruction_id) AS total_runs,
+    EXISTS(SELECT 1 FROM reference_image ri WHERE ri.instruction_id = ci.instruction_id AND ri.is_active = 1) AS has_active_reference,
+    (SELECT COUNT(*) FROM alert_issue ai WHERE ai.instruction_id = ci.instruction_id AND ai.status = 'open') AS open_alert_count
+FROM capture_instruction ci
+LEFT JOIN ranked_runs rr ON rr.instruction_id = ci.instruction_id AND rr.rn = 1
+ORDER BY
+    CASE rr.verdict WHEN 'fail' THEN 0 WHEN 'flaky' THEN 1 WHEN 'pass' THEN 2 ELSE 3 END,
+    ci.scene_or_level_id;
+"""
+
+
+def dashboard_summary(conn: sqlite3.Connection) -> list[models.DashboardRow]:
+    """One row per CaptureInstruction with its latest verdict, ordered so
+    the most urgent scenes (currently failing, then flaky) surface first --
+    a health-at-a-glance view across every tracked scene, not just the one
+    currently selected in the tool."""
+    rows = conn.execute(DASHBOARD_SQL).fetchall()
+    return [
+        models.DashboardRow(
+            instruction_id=r["instruction_id"],
+            scene_or_level_id=r["scene_or_level_id"],
+            created_at=r["created_at"],
+            latest_verdict=r["latest_verdict"],
+            latest_build_version=r["latest_build_version"],
+            latest_evaluated_at=r["latest_evaluated_at"],
+            latest_diff_pixel_count=r["latest_diff_pixel_count"],
+            latest_diff_percentage=r["latest_diff_percentage"],
+            total_runs=r["total_runs"],
+            has_active_reference=bool(r["has_active_reference"]),
+            open_alert_count=r["open_alert_count"],
+        )
+        for r in rows
+    ]
+
+
 def latest_verdict_for_instruction(
     conn: sqlite3.Connection, instruction_id: str
 ) -> str | None:

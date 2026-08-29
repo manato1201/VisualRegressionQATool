@@ -136,3 +136,17 @@ class RunRow(BaseModel):
     scene_or_level_id: str
     reference_image_id: str
     resolution_note: Optional[str] = None
+
+
+class DashboardRow(BaseModel):
+    instruction_id: str
+    scene_or_level_id: str
+    created_at: str
+    latest_verdict: Optional[Verdict] = None
+    latest_build_version: Optional[str] = None
+    latest_evaluated_at: Optional[str] = None
+    latest_diff_pixel_count: Optional[int] = None
+    latest_diff_percentage: Optional[float] = None
+    total_runs: int
+    has_active_reference: bool
+    open_alert_count: int
