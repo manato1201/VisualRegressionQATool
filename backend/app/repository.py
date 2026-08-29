@@ -363,6 +363,42 @@ def _row_to_evaluation(row: sqlite3.Row) -> models.EvaluationResultOut:
     )
 
 
+def reconcile_flaky_verdicts(conn: sqlite3.Connection, *, instruction_id: str, build_version: str) -> list[str]:
+    """If the same (instruction, build_version) has both a `pass` and a
+    `fail` among its evaluation history, the underlying capture is
+    non-deterministic rather than genuinely regressed or genuinely fine --
+    re-labels every non-flaky evaluation for that build as `flaky` instead
+    of leaving a misleading, contradictory pass/fail split.
+
+    Returns the evaluation_result_ids that were just flipped to flaky (empty
+    if nothing needed reconciling).
+    """
+    with db_write_lock:
+        rows = conn.execute(
+            """
+            SELECT er.evaluation_result_id AS id, er.verdict AS verdict
+            FROM evaluation_result er
+            JOIN diff_image di ON er.diff_image_id = di.diff_image_id
+            JOIN captured_image cap ON di.captured_image_id = cap.captured_image_id
+            WHERE cap.instruction_id = ? AND cap.build_version = ?
+            """,
+            (instruction_id, build_version),
+        ).fetchall()
+
+        verdicts = {row["verdict"] for row in rows}
+        if not {"pass", "fail"} <= verdicts:
+            return []
+
+        to_flip = [row["id"] for row in rows if row["verdict"] in ("pass", "fail")]
+        for evaluation_result_id in to_flip:
+            conn.execute(
+                "UPDATE evaluation_result SET verdict = 'flaky' WHERE evaluation_result_id = ?",
+                (evaluation_result_id,),
+            )
+        conn.commit()
+        return to_flip
+
+
 # --- alert_issue ---------------------------------------------------------------
 
 

@@ -97,6 +97,16 @@ def _execute_diff_run(
         conn, diff_image_id=diff_image.diff_image_id, verdict=result.verdict
     )
 
+    flipped_ids = repository.reconcile_flaky_verdicts(
+        conn,
+        instruction_id=captured.instruction_id,
+        build_version=captured.build_version,
+    )
+    if evaluation_result.evaluation_result_id in flipped_ids:
+        evaluation_result = repository.get_evaluation_result(
+            conn, evaluation_result.evaluation_result_id
+        )
+
     alert_payload = _handle_alerting(
         conn,
         alert_sink,
@@ -187,6 +197,10 @@ def _handle_alerting(
     evaluation_result: models.EvaluationResultOut,
     diff_image: models.DiffImageOut,
 ) -> dict | None:
+    # verdict == "flaky" deliberately triggers neither branch below: a
+    # non-deterministic capture is not evidence of a real regression (don't
+    # open an alert) nor evidence it's actually fine (don't auto-close one
+    # either) -- see repository.reconcile_flaky_verdicts.
     if evaluation_result.verdict == "fail":
         # find-open-issue-then-create is a check-then-act sequence; without
         # the lock, two concurrent failing runs for the same instruction

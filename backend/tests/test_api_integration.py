@@ -233,3 +233,61 @@ def test_diff_run_rejects_size_mismatch_without_allow_center_crop_then_succeeds_
     runs = client.get("/api/runs", params={"instruction_id": instruction_id}).json()
     resized_run = next(r for r in runs if r["build_version"] == "resized")
     assert resized_run["resolution_note"] is not None
+
+
+def test_two_captures_of_the_same_build_version_disagreeing_are_reconciled_as_flaky(
+    client: TestClient,
+):
+    """If re-capturing the exact same build_version sometimes passes and
+    sometimes fails, the capture itself is non-deterministic -- neither
+    verdict is trustworthy on its own, so both get relabeled 'flaky' instead
+    of leaving a contradictory pass/fail split in the history."""
+    instr = client.post(
+        "/api/instructions", json={"scene_or_level_id": "FlakyScene"}
+    ).json()
+    instruction_id = instr["instruction_id"]
+
+    reference_cap = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "reference"},
+        files={"file": ("ref.png", _png_bytes((50, 50, 50)), "image/png")},
+    ).json()
+    client.post(
+        "/api/references/promote",
+        json={
+            "captured_image_id": reference_cap["captured_image_id"],
+            "approved_by": "qa",
+        },
+    )
+
+    # Same build_version, two different re-captures: one happens to match
+    # the reference exactly, the other doesn't.
+    matching_cap = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "flaky-build"},
+        files={"file": ("run1.png", _png_bytes((50, 50, 50)), "image/png")},
+    ).json()
+    diverging_cap = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "flaky-build"},
+        files={"file": ("run2.png", _png_bytes((250, 0, 0)), "image/png")},
+    ).json()
+
+    first_result = client.post(
+        "/api/diffs/run", json={"captured_image_id": matching_cap["captured_image_id"]}
+    ).json()
+    assert first_result["evaluation_result"]["verdict"] == "pass"
+
+    second_result = client.post(
+        "/api/diffs/run", json={"captured_image_id": diverging_cap["captured_image_id"]}
+    ).json()
+    # The contradictory result must be reconciled to flaky, not left as fail,
+    # and it must not open an alert (Noop sink here regardless, but the
+    # action dict should show no alerting action was taken).
+    assert second_result["evaluation_result"]["verdict"] == "flaky"
+    assert second_result["alert"] is None
+
+    runs = client.get("/api/runs", params={"instruction_id": instruction_id}).json()
+    flaky_build_runs = [r for r in runs if r["build_version"] == "flaky-build"]
+    assert len(flaky_build_runs) == 2
+    assert all(r["verdict"] == "flaky" for r in flaky_build_runs)
