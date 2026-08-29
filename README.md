@@ -67,6 +67,60 @@ cd backend
 uv run pytest -q
 ```
 
+## 動作確認手順
+
+各コンポーネントを実際に動かして確認する手順。上の「セットアップ」で起動したうえで進める。
+
+### 1. バックエンド(FastAPI)
+
+```bash
+cd backend
+uv sync --dev
+uv run pytest -q          # 37件全パスするはず
+uv run uvicorn app.main:app --port 8000 --reload
+```
+
+ブラウザ or `curl http://localhost:8000/api/health` → `{"status":"ok"}` が返れば起動確認完了。
+
+### 2. フロントエンド(React) — バックエンド起動後
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+`http://localhost:5173` を開き、以下の順に操作して一通り確認する:
+
+1. 初回は「はじめに」タブが表示される→「ツール」タブへ切り替え
+2. 左パネルで撮影指示(シーンID)を新規作成
+3. 「撮影画像」パネルで画像をアップロード
+4. その画像を「Referenceに昇格」
+5. 別の画像(同一内容)をアップロードして「差分実行」→ **Pass** になることを確認
+6. さらに別の画像(見た目を変えたもの)をアップロードして「差分実行」→ **Fail** になり、First Bad Commitバナーが表示されることを確認
+7. 「差分の詳細設定」で許容誤差(tolerance)・最小差分領域サイズを変更して再実行し、判定が変わることを確認
+8. 複数の撮影画像を選択し「選択した画像をまとめて差分実行」で一括実行を確認
+9. 撮影画像の「削除」ボタン(Referenceや差分履歴に使われている画像は削除できないことも確認)
+
+### 3. capture_agents(Unity/Houdini共通インターフェースのPython側) — バックエンド起動後
+
+```bash
+cd capture_agents
+uv sync --dev
+uv run pytest -q                                    # 8件全パスするはず
+uv run --with pillow --with numpy python examples/fake_agent_smoke_test.py
+```
+
+Houdini本体が無くても、フェイクエージェント経由で「撮影→アップロード→pass判定→regression→fail判定→first-bad-commit特定」までを実際にコンソールで確認できる。最後にフロントエンド(`http://localhost:5173`)を開き、`CaptureAgentSmokeTest`という撮影指示ができていることを確認するとより分かりやすい。実機Houdiniがある場合は[`capture_agents/README.md`](capture_agents/README.md)のHoudini向け手順を参照。
+
+### 4. unity_capture_agent(C#) — 要Unity(このリポジトリ内では未検証)
+
+1. `unity_capture_agent/*.cs` を対象UnityプロジェクトのAssets配下にコピー
+2. 空のGameObjectを作成し `CaptureAgentExample` をアタッチ
+3. InspectorでbackendUrl(`http://localhost:8000`)・cameraName・sceneOrLevelIdを設定
+4. Play中に `RunOnce()` を呼び出す(ボタン等から)
+5. Consoleに `verdict = pass` または `verdict = fail` が出力されれば成功
+
 ## アラートsinkの設定
 
 環境変数 `VRQA_ALERT_SINK` で切替(既定は `noop`)。
