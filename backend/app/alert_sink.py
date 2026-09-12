@@ -16,10 +16,17 @@ runtime via ``build_alert_sink_from_env``.
 from __future__ import annotations
 
 import os
+from collections import deque
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Protocol
 
 import httpx
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 
 FAILURE_LABEL = "visual-regression-fail"
 MARKER_PREFIX = "<!-- vrqa-instruction-id:"
@@ -166,6 +173,51 @@ class GitHubIssueAlertSink:
         ).raise_for_status()
 
 
+@dataclass
+class ToastEntry:
+    id: int
+    severity: str  # "error" | "success"
+    message: str
+    created_at: str
+
+
+class WebUiToastAlertSink:
+    """Phase 6 (stack toast): pushes failure/recovery notifications into an
+    in-memory queue that the frontend polls (GET /api/alerts/toasts) and
+    renders as a stack of toasts. Toasts themselves are ephemeral (an
+    in-memory deque, not a DB table -- they don't need to survive a
+    restart), but this sink still returns a real external_ref and
+    participates in the existing alert_issue dedup/close bookkeeping the
+    same way GitHubIssueAlertSink does, so a repeat failure on an instruction
+    that already has an open toast doesn't spam a second one.
+    """
+
+    def __init__(self, max_queue: int = 200) -> None:
+        self._queue: deque[ToastEntry] = deque(maxlen=max_queue)
+        self._next_id = 1
+
+    def _push(self, severity: str, message: str) -> str:
+        entry = ToastEntry(
+            id=self._next_id, severity=severity, message=message, created_at=_now()
+        )
+        self._next_id += 1
+        self._queue.append(entry)
+        return str(entry.id)
+
+    def notify_failure(self, ctx: AlertFailureContext) -> str | None:
+        return self._push(
+            "error",
+            f"{ctx.scene_or_level_id} — {ctx.build_version} が FAIL しました "
+            f"({ctx.diff_pixel_count}px, {ctx.diff_percentage:.4f}%)",
+        )
+
+    def notify_recovery(self, instruction_id: str, external_ref: str) -> None:
+        self._push("success", f"{instruction_id} が回復しました(PASS)")
+
+    def toasts_since(self, since_id: int) -> list[ToastEntry]:
+        return [t for t in self._queue if t.id > since_id]
+
+
 def build_alert_sink_from_env() -> IAlertSink:
     """Config-switch factory: VRQA_ALERT_SINK selects the implementation without touching code."""
     kind = os.environ.get("VRQA_ALERT_SINK", "noop").lower()
@@ -174,6 +226,8 @@ def build_alert_sink_from_env() -> IAlertSink:
         repo = os.environ["VRQA_GITHUB_REPO"]
         token = os.environ["VRQA_GITHUB_TOKEN"]
         return GitHubIssueAlertSink(owner=owner, repo=repo, token=token)
+    if kind == "webui_toast":
+        return WebUiToastAlertSink()
     if kind == "webhook":
         return WebhookAlertSink(url=os.environ["VRQA_WEBHOOK_URL"])
     return NoopAlertSink()

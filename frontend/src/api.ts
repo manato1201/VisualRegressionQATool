@@ -8,6 +8,7 @@ import type {
   FirstBadCommit,
   ReferenceImage,
   RunRow,
+  ToastListResponse,
 } from "./types";
 
 export const API_BASE =
@@ -187,4 +188,7 @@ export const api = {
     ),
 
   getDashboard: () => request<DashboardRow[]>("/api/runs/dashboard"),
+
+  listToasts: (sinceId: number) =>
+    request<ToastListResponse>(`/api/alerts/toasts?since_id=${sinceId}`),
 };

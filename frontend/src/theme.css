@@ -189,3 +189,127 @@ select {
 .text-mute {
   color: var(--color-mute);
 }
+
+/* Phase 6: diff viewer UI enhancements ------------------------------------ */
+
+/* 1. Focus ring: pulses around a hovered diff-pixel cluster. */
+.diff-focus-ring {
+  position: absolute;
+  pointer-events: none;
+  outline: 3px solid var(--color-fail);
+  outline-offset: 2px;
+  border-radius: var(--rounded-sm);
+  animation: focus-ring-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes focus-ring-pulse {
+  0%,
+  100% {
+    outline-color: rgba(192, 57, 43, 0.9);
+  }
+  50% {
+    outline-color: rgba(192, 57, 43, 0.35);
+  }
+}
+
+/* 5. Segment rail: replaces the old plain button pair for view-mode switching. */
+.segment-rail {
+  display: inline-flex;
+  border: 1px solid var(--color-ink);
+  border-radius: var(--rounded-md);
+  padding: 2px;
+  gap: 2px;
+  background: var(--color-canvas);
+}
+
+.segment-rail button {
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: calc(var(--rounded-md) - 3px);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.segment-rail button[aria-selected="true"] {
+  background: var(--color-ink);
+  color: var(--color-on-primary);
+}
+
+.segment-rail button:not([aria-selected="true"]):hover {
+  background: var(--color-canvas-soft);
+}
+
+/* 3. Split-flap number: per-character flip when a value changes. */
+.flap-number {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+}
+
+.flap-digit {
+  display: inline-block;
+  perspective: 240px;
+  width: 0.62em;
+  text-align: center;
+}
+
+.flap-digit .card {
+  display: inline-block;
+  transform-style: preserve-3d;
+  transition: transform 0.35s ease-in;
+  will-change: transform;
+}
+
+.flap-digit.flipping .card {
+  transform: rotateX(-180deg);
+}
+
+/* 4. Stack toast: alerts pushed from IAlertSink implementations. */
+.toast-stack {
+  position: fixed;
+  right: var(--spacing-xl);
+  bottom: var(--spacing-xl);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--spacing-sm);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  min-width: 260px;
+  max-width: 360px;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--rounded-md);
+  box-shadow: 0 8px 24px rgba(32, 21, 21, 0.18);
+  font-size: 14px;
+  animation: toast-slide-in 0.25s ease-out;
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.toast-error {
+  background: var(--color-fail);
+  color: var(--color-on-primary);
+}
+
+.toast-success {
+  background: var(--color-pass);
+  color: var(--color-on-primary);
+}

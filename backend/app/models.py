@@ -150,3 +150,15 @@ class DashboardRow(BaseModel):
     total_runs: int
     has_active_reference: bool
     open_alert_count: int
+
+
+class ToastOut(BaseModel):
+    id: int
+    severity: str
+    message: str
+    created_at: str
+
+
+class ToastListResponse(BaseModel):
+    toasts: list[ToastOut]
+    last_id: int

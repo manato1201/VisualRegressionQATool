@@ -131,6 +131,7 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `noop` | 何もしない(既定) |
 | `webhook` | `VRQA_WEBHOOK_URL` へPOST |
 | `github` | `VRQA_GITHUB_OWNER` / `VRQA_GITHUB_REPO` / `VRQA_GITHUB_TOKEN` を指定し、`visual-regression-fail`ラベルでIssueを自動作成/自動クローズ |
+| `webui_toast` | 差分ビューアWeb UI上にスタックトースト(積み重ね通知)としてfail/recoveryを表示。DBスキーマ追加なしのインメモリキューで、フロントエンドが `GET /api/alerts/toasts?since_id=` をポーリングして描画する(`frontend/src/components/ToastStack.tsx`) |
 
 ## ディレクトリ構成
 
@@ -147,9 +148,9 @@ VisualRegressionQATool/
 │   │   ├── repository.py    # CRUD
 │   │   ├── queries.py       # first-bad-commit等の履歴クエリ
 │   │   ├── alert_sink.py    # IAlertSinkと実装群
-│   │   ├── routers/         # instructions/captures/references/diffs/runs
+│   │   ├── routers/         # instructions/captures/references/diffs/runs/alerts
 │   │   └── main.py          # FastAPIアプリ組み立て
-│   └── tests/                # pytest 37件
+│   └── tests/                # pytest 58件
 ├── frontend/
 │   └── src/
 │       ├── theme.css              # Zapier風デザイントークン

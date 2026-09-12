@@ -1,13 +1,25 @@
 import { useEffect, useState } from "react";
 import { api, describeApiError, imageUrl } from "../api";
+import { clusterContains, findDiffClusters, type DiffCluster } from "../diffClusters";
 import { loadPixelSampler, type PixelSampler } from "../pixelSampler";
-import type { RunRow } from "../types";
+import type { FirstBadCommit, RunRow } from "../types";
+import { DotChart } from "./DotChart";
+import { SplitFlapNumber } from "./SplitFlapNumber";
 import { VerdictBadge } from "./VerdictBadge";
 
-type Mode = "side-by-side" | "overlay";
+type Mode = "side-by-side" | "overlay" | "dot-history";
+
+const MODES: { key: Mode; label: string }[] = [
+  { key: "side-by-side", label: "サイドバイサイド" },
+  { key: "overlay", label: "オーバーレイ" },
+  { key: "dot-history", label: "ドットチャート履歴" },
+];
 
 interface Props {
   run: RunRow;
+  runs: RunRow[];
+  firstBadCommit: FirstBadCommit | null;
+  onSelectRun: (run: RunRow) => void;
 }
 
 interface HoverPixel {
@@ -15,7 +27,7 @@ interface HoverPixel {
   y: number;
 }
 
-export function DiffViewer({ run }: Props) {
+export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
   const [mode, setMode] = useState<Mode>("side-by-side");
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
   const [referenceCapturedImageId, setReferenceCapturedImageId] = useState<string | null>(null);
@@ -24,6 +36,7 @@ export function DiffViewer({ run }: Props) {
   const [capturedSampler, setCapturedSampler] = useState<PixelSampler | null>(null);
   const [referenceSampler, setReferenceSampler] = useState<PixelSampler | null>(null);
   const [hoverPixel, setHoverPixel] = useState<HoverPixel | null>(null);
+  const [clusters, setClusters] = useState<DiffCluster[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +91,23 @@ export function DiffViewer({ run }: Props) {
     };
   }, [referenceUrl]);
 
+  // Feature 1 (focus ring): cluster the diff highlight image client-side --
+  // no new backend API, per the design doc.
+  useEffect(() => {
+    let cancelled = false;
+    setClusters([]);
+    findDiffClusters(diffUrl)
+      .then((found) => {
+        if (!cancelled) setClusters(found);
+      })
+      .catch(() => {
+        if (!cancelled) setClusters([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [diffUrl]);
+
   const inspectorSize = capturedSampler ?? referenceSampler;
 
   function handleHover(e: React.MouseEvent<HTMLImageElement>) {
@@ -94,6 +124,20 @@ export function DiffViewer({ run }: Props) {
   const referencePixel = hoverPixel && referenceSampler ? referenceSampler.sample(hoverPixel.x, hoverPixel.y) : null;
   const canInspect = Boolean(inspectorSize) && (Boolean(capturedSampler) || Boolean(referenceSampler));
 
+  // Focus ring only appears while hovering *inside* a detected cluster --
+  // it stays hidden everywhere else, including when not hovering at all.
+  const hoveredCluster =
+    hoverPixel && clusters.length > 0 ? clusters.find((c) => clusterContains(c, hoverPixel.x, hoverPixel.y)) ?? null : null;
+  const ringStyle: React.CSSProperties | null =
+    hoveredCluster && inspectorSize
+      ? {
+          left: `${(hoveredCluster.minX / inspectorSize.width) * 100}%`,
+          top: `${(hoveredCluster.minY / inspectorSize.height) * 100}%`,
+          width: `${((hoveredCluster.maxX - hoveredCluster.minX + 1) / inspectorSize.width) * 100}%`,
+          height: `${((hoveredCluster.maxY - hoveredCluster.minY + 1) / inspectorSize.height) * 100}%`,
+        }
+      : null;
+
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-lg)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--spacing-md)" }}>
@@ -103,19 +147,23 @@ export function DiffViewer({ run }: Props) {
             {run.build_version} <VerdictBadge verdict={run.verdict} />
           </h2>
         </div>
-        <div style={{ display: "flex", gap: "var(--spacing-xs)" }}>
-          <button className={`btn btn-sm ${mode === "side-by-side" ? "btn-secondary" : "btn-tertiary"}`} onClick={() => setMode("side-by-side")}>
-            サイドバイサイド
-          </button>
-          <button className={`btn btn-sm ${mode === "overlay" ? "btn-secondary" : "btn-tertiary"}`} onClick={() => setMode("overlay")}>
-            オーバーレイ
-          </button>
+        <div className="segment-rail" role="tablist" aria-label="diff view mode">
+          {MODES.map((m) => (
+            <button key={m.key} role="tab" aria-selected={mode === m.key} onClick={() => setMode(m.key)}>
+              {m.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div style={{ display: "flex", gap: "var(--spacing-xl)", fontSize: 14 }} className="text-body-mid">
-        <span>diff pixels: {run.diff_pixel_count.toLocaleString()}</span>
-        <span>diff %: {run.diff_percentage.toFixed(4)}%</span>
+        <span>
+          diff pixels: <SplitFlapNumber value={run.diff_pixel_count.toLocaleString()} />
+        </span>
+        <span>
+          diff %: <SplitFlapNumber value={`${run.diff_percentage.toFixed(4)}%`} />
+        </span>
+        {clusters.length > 0 && <span>差分クラスタ: {clusters.length}件検出(領域にカーソルを合わせるとリング表示)</span>}
       </div>
 
       {error && <p style={{ color: "var(--color-fail)" }}>reference画像の解決に失敗しました: {error}</p>}
@@ -123,13 +171,13 @@ export function DiffViewer({ run }: Props) {
       {mode === "side-by-side" ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "var(--spacing-lg)" }}>
-            <Frame label="Captured" src={capturedUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} />
-            <Frame label="Reference" src={referenceUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} />
-            <Frame label="Diff Highlight" src={diffUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} />
+            <Frame label="Captured" src={capturedUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} ringStyle={ringStyle} />
+            <Frame label="Reference" src={referenceUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} ringStyle={ringStyle} />
+            <Frame label="Diff Highlight" src={diffUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} ringStyle={ringStyle} />
           </div>
           <PixelInspectorPanel hoverPixel={hoverPixel} capturedPixel={capturedPixel} referencePixel={referencePixel} canInspect={canInspect} />
         </>
-      ) : (
+      ) : mode === "overlay" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
           <label style={{ fontSize: 14, color: "var(--color-body)" }}>
             Diffハイライト不透明度: {(overlayOpacity * 100).toFixed(0)}%
@@ -159,9 +207,12 @@ export function DiffViewer({ run }: Props) {
               alt="diff overlay"
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: overlayOpacity, mixBlendMode: "normal", pointerEvents: "none" }}
             />
+            {ringStyle && <div className="diff-focus-ring" style={ringStyle} />}
           </div>
           <PixelInspectorPanel hoverPixel={hoverPixel} capturedPixel={capturedPixel} referencePixel={referencePixel} canInspect={canInspect} />
         </div>
+      ) : (
+        <DotChart runs={runs} firstBadCommit={firstBadCommit} selectedRunId={run.evaluation_result_id} onSelectRun={onSelectRun} />
       )}
     </section>
   );
@@ -172,11 +223,13 @@ function Frame({
   src,
   onHover,
   onLeave,
+  ringStyle,
 }: {
   label: string;
   src: string | null;
   onHover?: (e: React.MouseEvent<HTMLImageElement>) => void;
   onLeave?: () => void;
+  ringStyle?: React.CSSProperties | null;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)" }}>
@@ -184,19 +237,23 @@ function Frame({
         {label}
       </span>
       {src ? (
-        <img
-          src={src}
-          alt={label}
-          crossOrigin="anonymous"
-          style={{
-            width: "100%",
-            borderRadius: "var(--rounded-sm)",
-            border: "1px solid var(--color-mute)",
-            cursor: onHover ? "crosshair" : undefined,
-          }}
-          onMouseMove={onHover}
-          onMouseLeave={onLeave}
-        />
+        <div style={{ position: "relative" }}>
+          <img
+            src={src}
+            alt={label}
+            crossOrigin="anonymous"
+            style={{
+              width: "100%",
+              display: "block",
+              borderRadius: "var(--rounded-sm)",
+              border: "1px solid var(--color-mute)",
+              cursor: onHover ? "crosshair" : undefined,
+            }}
+            onMouseMove={onHover}
+            onMouseLeave={onLeave}
+          />
+          {ringStyle && <div className="diff-focus-ring" style={ringStyle} />}
+        </div>
       ) : (
         <div
           style={{

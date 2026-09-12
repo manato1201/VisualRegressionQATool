@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 
 from app.alert_sink import (
     AlertFailureContext,
@@ -9,6 +10,8 @@ from app.alert_sink import (
     IAlertSink,
     NoopAlertSink,
     WebhookAlertSink,
+    WebUiToastAlertSink,
+    build_alert_sink_from_env,
 )
 
 _CTX = AlertFailureContext(
@@ -128,3 +131,44 @@ def test_sink_implementations_share_the_same_interface_swap_free_of_code_changes
         return sink.notify_failure(_CTX)
 
     assert use_sink(NoopAlertSink()) is None
+
+
+def test_webui_toast_sink_queues_failure_and_recovery_as_separate_severities():
+    sink = WebUiToastAlertSink()
+    ref = sink.notify_failure(_CTX)
+    assert ref == "1"
+    sink.notify_recovery("instr-1", ref)
+
+    toasts = sink.toasts_since(0)
+    assert [t.severity for t in toasts] == ["error", "success"]
+    assert "OutdoorsScene" in toasts[0].message
+    assert "instr-1" in toasts[1].message
+
+
+def test_webui_toast_sink_toasts_since_only_returns_newer_entries():
+    sink = WebUiToastAlertSink()
+    sink.notify_failure(_CTX)
+    sink.notify_failure(_CTX)
+    first_id = int(sink.toasts_since(0)[0].id)
+
+    remaining = sink.toasts_since(first_id)
+    assert len(remaining) == 1
+    assert remaining[0].id == first_id + 1
+
+
+def test_webui_toast_sink_drops_oldest_once_queue_is_full():
+    sink = WebUiToastAlertSink(max_queue=2)
+    for _ in range(3):
+        sink.notify_failure(_CTX)
+
+    toasts = sink.toasts_since(0)
+    assert len(toasts) == 2
+    assert [t.id for t in toasts] == [2, 3]
+
+
+def test_build_alert_sink_from_env_selects_webui_toast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VRQA_ALERT_SINK", "webui_toast")
+    sink = build_alert_sink_from_env()
+    assert isinstance(sink, WebUiToastAlertSink)

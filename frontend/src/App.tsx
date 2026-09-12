@@ -10,6 +10,7 @@ import { DiffViewer } from "./components/DiffViewer";
 import { GettingStarted } from "./components/GettingStarted";
 import { InstructionPanel } from "./components/InstructionPanel";
 import { RunHistory } from "./components/RunHistory";
+import { ToastStack } from "./components/ToastStack";
 import type {
   CaptureInstruction,
   CapturedImage,
@@ -227,6 +228,7 @@ export default function App() {
     <div
       style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}
     >
+      <ToastStack />
       <header
         style={{
           padding: "var(--spacing-md) var(--spacing-xl)",
@@ -334,7 +336,14 @@ export default function App() {
                   selectedRunId={selectedRun?.evaluation_result_id ?? null}
                   onSelectRun={setSelectedRun}
                 />
-                {selectedRun && <DiffViewer run={selectedRun} />}
+                {selectedRun && (
+                  <DiffViewer
+                    run={selectedRun}
+                    runs={runs}
+                    firstBadCommit={firstBadCommit}
+                    onSelectRun={setSelectedRun}
+                  />
+                )}
               </>
             ) : (
               <p className="text-body-mid">
