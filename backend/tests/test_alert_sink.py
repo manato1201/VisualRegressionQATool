@@ -7,6 +7,7 @@ import pytest
 
 from app.alert_sink import (
     AlertFailureContext,
+    CompositeAlertSink,
     FAILURE_LABEL,
     GitHubIssueAlertSink,
     IAlertSink,
@@ -14,6 +15,7 @@ from app.alert_sink import (
     WebhookAlertSink,
     WebUiToastAlertSink,
     build_alert_sink_from_env,
+    find_webui_toast_sink,
 )
 
 _CTX = AlertFailureContext(
@@ -145,6 +147,10 @@ def test_webui_toast_sink_queues_failure_and_recovery_as_separate_severities():
     assert [t.severity for t in toasts] == ["error", "success"]
     assert "OutdoorsScene" in toasts[0].message
     assert "instr-1" in toasts[1].message
+    # instruction_id lets the frontend jump straight to the failing
+    # instruction when a toast is clicked.
+    assert toasts[0].instruction_id == "instr-1"
+    assert toasts[1].instruction_id == "instr-1"
 
 
 def test_webui_toast_sink_toasts_since_only_returns_newer_entries():
@@ -204,3 +210,104 @@ def test_build_alert_sink_from_env_selects_webui_toast(
     monkeypatch.setenv("VRQA_ALERT_SINK", "webui_toast")
     sink = build_alert_sink_from_env()
     assert isinstance(sink, WebUiToastAlertSink)
+
+
+class _RecordingSink:
+    """Bare-bones IAlertSink stub whose ref and recovery calls are recorded,
+    so composite fan-out and per-child recovery routing can be asserted."""
+
+    def __init__(self, ref: str | None) -> None:
+        self.ref = ref
+        self.recoveries: list[tuple[str, str]] = []
+
+    def notify_failure(self, ctx: AlertFailureContext) -> str | None:
+        return self.ref
+
+    def notify_recovery(self, instruction_id: str, external_ref: str) -> None:
+        self.recoveries.append((instruction_id, external_ref))
+
+
+def test_composite_sink_fans_failure_out_to_every_child():
+    toast = WebUiToastAlertSink()
+    other = _RecordingSink(ref="child-ref")
+    composite = CompositeAlertSink([toast, other])
+
+    ref = composite.notify_failure(_CTX)
+
+    # The public external_ref (what alert_issue stores) is always the first
+    # child's own ref, not something composite invents.
+    assert ref == "1"
+    assert len(toast.toasts_since(0)) == 1
+    assert other.ref == "child-ref"
+
+
+def test_composite_sink_replays_each_childs_own_ref_on_recovery():
+    """Each child sink minted its own ref (a toast id, a webhook's echo of
+    evaluation_result_id, a GitHub issue number...) -- recovery must hand
+    each child back exactly that ref, not whatever the DB's single
+    external_ref column happens to store for the composite as a whole."""
+    a = _RecordingSink(ref="ref-a")
+    b = _RecordingSink(ref="ref-b")
+    composite = CompositeAlertSink([a, b])
+
+    composite.notify_failure(_CTX)
+    composite.notify_recovery("instr-1", "whatever-the-db-stored")
+
+    assert a.recoveries == [("instr-1", "ref-a")]
+    assert b.recoveries == [("instr-1", "ref-b")]
+
+
+def test_composite_sink_skips_children_that_declined_to_open_an_alert():
+    declined = _RecordingSink(ref=None)
+    opened = _RecordingSink(ref="ref-b")
+    composite = CompositeAlertSink([declined, opened])
+
+    ref = composite.notify_failure(_CTX)
+    composite.notify_recovery("instr-1", ref)
+
+    assert ref == "ref-b"
+    assert declined.recoveries == []
+    assert opened.recoveries == [("instr-1", "ref-b")]
+
+
+def test_composite_sink_returns_none_when_no_child_opens_an_alert():
+    composite = CompositeAlertSink([_RecordingSink(ref=None), _RecordingSink(ref=None)])
+    assert composite.notify_failure(_CTX) is None
+
+
+def test_find_webui_toast_sink_locates_direct_and_nested_instances():
+    direct = WebUiToastAlertSink()
+    assert find_webui_toast_sink(direct) is direct
+
+    nested = WebUiToastAlertSink()
+    composite = CompositeAlertSink([_RecordingSink(ref=None), nested])
+    assert find_webui_toast_sink(composite) is nested
+
+    assert find_webui_toast_sink(NoopAlertSink()) is None
+    assert find_webui_toast_sink(CompositeAlertSink([NoopAlertSink()])) is None
+
+
+def test_build_alert_sink_from_env_selects_composite_of_named_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VRQA_ALERT_SINK", "composite")
+    monkeypatch.setenv("VRQA_ALERT_SINK_KINDS", "webui_toast, webhook")
+    monkeypatch.setenv("VRQA_WEBHOOK_URL", "https://example.com/hook")
+
+    sink = build_alert_sink_from_env()
+
+    assert isinstance(sink, CompositeAlertSink)
+    assert [type(s).__name__ for s in sink.sinks] == [
+        "WebUiToastAlertSink",
+        "WebhookAlertSink",
+    ]
+
+
+def test_build_alert_sink_from_env_composite_requires_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VRQA_ALERT_SINK", "composite")
+    monkeypatch.delenv("VRQA_ALERT_SINK_KINDS", raising=False)
+
+    with pytest.raises(ValueError):
+        build_alert_sink_from_env()

@@ -118,6 +118,7 @@ export interface ToastItem {
   severity: ToastSeverity;
   message: string;
   created_at: string;
+  instruction_id: string;
 }
 
 export interface ToastListResponse {

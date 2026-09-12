@@ -180,6 +180,7 @@ class ToastEntry:
     severity: str  # "error" | "success"
     message: str
     created_at: str
+    instruction_id: str
 
 
 class WebUiToastAlertSink:
@@ -202,10 +203,14 @@ class WebUiToastAlertSink:
         # it can raise "deque mutated during iteration".
         self._lock = threading.Lock()
 
-    def _push(self, severity: str, message: str) -> str:
+    def _push(self, severity: str, message: str, instruction_id: str) -> str:
         with self._lock:
             entry = ToastEntry(
-                id=self._next_id, severity=severity, message=message, created_at=_now()
+                id=self._next_id,
+                severity=severity,
+                message=message,
+                created_at=_now(),
+                instruction_id=instruction_id,
             )
             self._next_id += 1
             self._queue.append(entry)
@@ -216,19 +221,72 @@ class WebUiToastAlertSink:
             "error",
             f"{ctx.scene_or_level_id} — {ctx.build_version} が FAIL しました "
             f"({ctx.diff_pixel_count}px, {ctx.diff_percentage:.4f}%)",
+            ctx.instruction_id,
         )
 
     def notify_recovery(self, instruction_id: str, external_ref: str) -> None:
-        self._push("success", f"{instruction_id} が回復しました(PASS)")
+        self._push("success", f"{instruction_id} が回復しました(PASS)", instruction_id)
 
     def toasts_since(self, since_id: int) -> list[ToastEntry]:
         with self._lock:
             return [t for t in self._queue if t.id > since_id]
 
 
-def build_alert_sink_from_env() -> IAlertSink:
-    """Config-switch factory: VRQA_ALERT_SINK selects the implementation without touching code."""
-    kind = os.environ.get("VRQA_ALERT_SINK", "noop").lower()
+class CompositeAlertSink:
+    """Fans a failure/recovery out to several sinks at once -- e.g. a
+    WebUiToastAlertSink for whoever has the dashboard open plus a
+    WebhookAlertSink for Slack/CI, configured via VRQA_ALERT_SINK=composite
+    + VRQA_ALERT_SINK_KINDS="webui_toast,webhook".
+
+    alert_issue only has room for a single external_ref column, but each
+    child sink mints its own (an issue number, an evaluation id, a toast
+    id...) that its own notify_recovery call later needs back unchanged --
+    collapsing them into one value would silently break recovery for every
+    sink but the first. So this class remembers each child's ref itself
+    (keyed by instruction_id) and returns only the first as the "public"
+    external_ref for the existing dedup/close bookkeeping; notify_recovery
+    ignores the ref FastAPI hands back and replays each child's own ref
+    instead. Like WebUiToastAlertSink, this bookkeeping is in-memory only,
+    so a recovery for an alert opened before a server restart won't reach
+    the child sinks -- the same limitation the toast queue already has.
+    """
+
+    def __init__(self, sinks: list[IAlertSink]) -> None:
+        self.sinks = sinks
+        self._child_refs: dict[str, list[tuple[IAlertSink, str]]] = {}
+
+    def notify_failure(self, ctx: AlertFailureContext) -> str | None:
+        pairs = [
+            (sink, ref)
+            for sink in self.sinks
+            if (ref := sink.notify_failure(ctx)) is not None
+        ]
+        if not pairs:
+            return None
+        self._child_refs[ctx.instruction_id] = pairs
+        return pairs[0][1]
+
+    def notify_recovery(self, instruction_id: str, external_ref: str) -> None:
+        for sink, ref in self._child_refs.pop(instruction_id, []):
+            sink.notify_recovery(instruction_id, ref)
+
+
+def find_webui_toast_sink(sink: IAlertSink) -> WebUiToastAlertSink | None:
+    """GET /api/alerts/toasts needs the actual WebUiToastAlertSink instance,
+    which may be configured directly (VRQA_ALERT_SINK=webui_toast) or nested
+    inside a CompositeAlertSink (VRQA_ALERT_SINK=composite). A plain
+    isinstance check on app.state.alert_sink would miss the composite case."""
+    if isinstance(sink, WebUiToastAlertSink):
+        return sink
+    if isinstance(sink, CompositeAlertSink):
+        for child in sink.sinks:
+            if isinstance(child, WebUiToastAlertSink):
+                return child
+    return None
+
+
+def _build_single_sink(kind: str) -> IAlertSink:
+    kind = kind.strip().lower()
     if kind == "github":
         owner = os.environ["VRQA_GITHUB_OWNER"]
         repo = os.environ["VRQA_GITHUB_REPO"]
@@ -238,4 +296,21 @@ def build_alert_sink_from_env() -> IAlertSink:
         return WebUiToastAlertSink()
     if kind == "webhook":
         return WebhookAlertSink(url=os.environ["VRQA_WEBHOOK_URL"])
-    return NoopAlertSink()
+    if kind == "noop":
+        return NoopAlertSink()
+    raise ValueError(f"unknown alert sink kind: {kind!r}")
+
+
+def build_alert_sink_from_env() -> IAlertSink:
+    """Config-switch factory: VRQA_ALERT_SINK selects the implementation without touching code."""
+    kind = os.environ.get("VRQA_ALERT_SINK", "noop").lower()
+    if kind == "composite":
+        kinds_env = os.environ.get("VRQA_ALERT_SINK_KINDS", "")
+        kinds = [k for k in (part.strip() for part in kinds_env.split(",")) if k]
+        if not kinds:
+            raise ValueError(
+                "VRQA_ALERT_SINK=composite requires VRQA_ALERT_SINK_KINDS "
+                "(comma-separated, e.g. 'webui_toast,webhook')"
+            )
+        return CompositeAlertSink([_build_single_sink(k) for k in kinds])
+    return _build_single_sink(kind)

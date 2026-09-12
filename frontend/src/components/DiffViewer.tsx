@@ -37,6 +37,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
   const [referenceSampler, setReferenceSampler] = useState<PixelSampler | null>(null);
   const [hoverPixel, setHoverPixel] = useState<HoverPixel | null>(null);
   const [clusters, setClusters] = useState<DiffCluster[]>([]);
+  const [pinnedCluster, setPinnedCluster] = useState<DiffCluster | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +97,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
   useEffect(() => {
     let cancelled = false;
     setClusters([]);
+    setPinnedCluster(null);
     findDiffClusters(diffUrl)
       .then((found) => {
         if (!cancelled) setClusters(found);
@@ -138,6 +140,13 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
         }
       : null;
 
+  // Feature 1 follow-up: clicking inside a hovered cluster pins it, so the
+  // zoomed crop below stays put once the cursor moves away to compare it
+  // against the pixel inspector.
+  function handleClickPin() {
+    if (hoveredCluster) setPinnedCluster(hoveredCluster);
+  }
+
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-lg)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--spacing-md)" }}>
@@ -163,7 +172,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
         <span>
           diff %: <SplitFlapNumber value={`${run.diff_percentage.toFixed(4)}%`} />
         </span>
-        {clusters.length > 0 && <span>差分クラスタ: {clusters.length}件検出(領域にカーソルを合わせるとリング表示)</span>}
+        {clusters.length > 0 && <span>差分クラスタ: {clusters.length}件検出(カーソルを合わせるとリング表示、クリックで拡大表示を固定)</span>}
       </div>
 
       {error && <p style={{ color: "var(--color-fail)" }}>reference画像の解決に失敗しました: {error}</p>}
@@ -171,11 +180,20 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
       {mode === "side-by-side" ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "var(--spacing-lg)" }}>
-            <Frame label="Captured" src={capturedUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} ringStyle={ringStyle} />
-            <Frame label="Reference" src={referenceUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} ringStyle={ringStyle} />
-            <Frame label="Diff Highlight" src={diffUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} ringStyle={ringStyle} />
+            <Frame label="Captured" src={capturedUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} onClick={handleClickPin} ringStyle={ringStyle} />
+            <Frame label="Reference" src={referenceUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} onClick={handleClickPin} ringStyle={ringStyle} />
+            <Frame label="Diff Highlight" src={diffUrl} onHover={canInspect ? handleHover : undefined} onLeave={() => setHoverPixel(null)} onClick={handleClickPin} ringStyle={ringStyle} />
           </div>
           <PixelInspectorPanel hoverPixel={hoverPixel} capturedPixel={capturedPixel} referencePixel={referencePixel} canInspect={canInspect} />
+          {pinnedCluster && inspectorSize && (
+            <ZoomPanel
+              cluster={pinnedCluster}
+              imageUrl={diffUrl}
+              imageWidth={inspectorSize.width}
+              imageHeight={inspectorSize.height}
+              onClose={() => setPinnedCluster(null)}
+            />
+          )}
         </>
       ) : mode === "overlay" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
@@ -200,6 +218,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                 style={{ display: "block", width: "100%", cursor: canInspect ? "crosshair" : undefined }}
                 onMouseMove={canInspect ? handleHover : undefined}
                 onMouseLeave={() => setHoverPixel(null)}
+                onClick={handleClickPin}
               />
             )}
             <img
@@ -210,6 +229,15 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
             {ringStyle && <div className="diff-focus-ring" style={ringStyle} />}
           </div>
           <PixelInspectorPanel hoverPixel={hoverPixel} capturedPixel={capturedPixel} referencePixel={referencePixel} canInspect={canInspect} />
+          {pinnedCluster && inspectorSize && (
+            <ZoomPanel
+              cluster={pinnedCluster}
+              imageUrl={diffUrl}
+              imageWidth={inspectorSize.width}
+              imageHeight={inspectorSize.height}
+              onClose={() => setPinnedCluster(null)}
+            />
+          )}
         </div>
       ) : (
         <DotChart runs={runs} firstBadCommit={firstBadCommit} selectedRunId={run.evaluation_result_id} onSelectRun={onSelectRun} />
@@ -223,12 +251,14 @@ function Frame({
   src,
   onHover,
   onLeave,
+  onClick,
   ringStyle,
 }: {
   label: string;
   src: string | null;
   onHover?: (e: React.MouseEvent<HTMLImageElement>) => void;
   onLeave?: () => void;
+  onClick?: () => void;
   ringStyle?: React.CSSProperties | null;
 }) {
   return (
@@ -251,6 +281,7 @@ function Frame({
             }}
             onMouseMove={onHover}
             onMouseLeave={onLeave}
+            onClick={onClick}
           />
           {ringStyle && <div className="diff-focus-ring" style={ringStyle} />}
         </div>
@@ -270,6 +301,61 @@ function Frame({
           読み込み中…
         </div>
       )}
+    </div>
+  );
+}
+
+const ZOOM_VIEW_SIZE = 220;
+const ZOOM_PADDING_FACTOR = 3;
+const ZOOM_MIN_WINDOW_PX = 12;
+
+/** Feature 1 follow-up: renders a pixelated CSS-background crop of the diff
+ * image centered on a pinned cluster, scaled so the cluster (plus some
+ * padding) fills the view -- lets a tiny regression be inspected without
+ * leaving the page or opening the raw image at full resolution. */
+function ZoomPanel({
+  cluster,
+  imageUrl,
+  imageWidth,
+  imageHeight,
+  onClose,
+}: {
+  cluster: DiffCluster;
+  imageUrl: string;
+  imageWidth: number;
+  imageHeight: number;
+  onClose: () => void;
+}) {
+  const clusterWidth = cluster.maxX - cluster.minX + 1;
+  const clusterHeight = cluster.maxY - cluster.minY + 1;
+  const windowSize = Math.max(clusterWidth, clusterHeight, ZOOM_MIN_WINDOW_PX) * ZOOM_PADDING_FACTOR;
+  const scale = ZOOM_VIEW_SIZE / windowSize;
+  const centerX = (cluster.minX + cluster.maxX + 1) / 2;
+  const centerY = (cluster.minY + cluster.maxY + 1) / 2;
+
+  return (
+    <div className="card-outline" style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", padding: "var(--spacing-md)", alignSelf: "flex-start" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--spacing-md)" }}>
+        <span style={{ fontSize: 12, fontWeight: 600 }} className="text-body-mid">
+          拡大表示({cluster.pixelCount.toLocaleString()}px)
+        </span>
+        <button className="btn btn-sm btn-tertiary" onClick={onClose}>
+          閉じる
+        </button>
+      </div>
+      <div
+        style={{
+          width: ZOOM_VIEW_SIZE,
+          height: ZOOM_VIEW_SIZE,
+          borderRadius: "var(--rounded-sm)",
+          border: "1px solid var(--color-mute)",
+          backgroundImage: `url(${imageUrl})`,
+          backgroundRepeat: "no-repeat",
+          backgroundSize: `${imageWidth * scale}px ${imageHeight * scale}px`,
+          backgroundPosition: `${-(centerX * scale - ZOOM_VIEW_SIZE / 2)}px ${-(centerY * scale - ZOOM_VIEW_SIZE / 2)}px`,
+          imageRendering: "pixelated",
+        }}
+      />
     </div>
   );
 }
