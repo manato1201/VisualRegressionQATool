@@ -16,6 +16,7 @@ runtime via ``build_alert_sink_from_env``.
 from __future__ import annotations
 
 import os
+import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -195,14 +196,20 @@ class WebUiToastAlertSink:
     def __init__(self, max_queue: int = 200) -> None:
         self._queue: deque[ToastEntry] = deque(maxlen=max_queue)
         self._next_id = 1
+        # GET /api/alerts/toasts (polling) and notify_failure/notify_recovery
+        # (from a diff-run request) run on different threadpool threads --
+        # without this, a poll iterating the deque while a notify appends to
+        # it can raise "deque mutated during iteration".
+        self._lock = threading.Lock()
 
     def _push(self, severity: str, message: str) -> str:
-        entry = ToastEntry(
-            id=self._next_id, severity=severity, message=message, created_at=_now()
-        )
-        self._next_id += 1
-        self._queue.append(entry)
-        return str(entry.id)
+        with self._lock:
+            entry = ToastEntry(
+                id=self._next_id, severity=severity, message=message, created_at=_now()
+            )
+            self._next_id += 1
+            self._queue.append(entry)
+            return str(entry.id)
 
     def notify_failure(self, ctx: AlertFailureContext) -> str | None:
         return self._push(
@@ -215,7 +222,8 @@ class WebUiToastAlertSink:
         self._push("success", f"{instruction_id} が回復しました(PASS)")
 
     def toasts_since(self, since_id: int) -> list[ToastEntry]:
-        return [t for t in self._queue if t.id > since_id]
+        with self._lock:
+            return [t for t in self._queue if t.id > since_id]
 
 
 def build_alert_sink_from_env() -> IAlertSink:

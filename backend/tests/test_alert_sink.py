@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import httpx
 import pytest
 
@@ -164,6 +166,36 @@ def test_webui_toast_sink_drops_oldest_once_queue_is_full():
     toasts = sink.toasts_since(0)
     assert len(toasts) == 2
     assert [t.id for t in toasts] == [2, 3]
+
+
+def test_webui_toast_sink_survives_concurrent_push_and_read():
+    """GET /api/alerts/toasts (toasts_since) and notify_failure (_push) run
+    on different threadpool threads in FastAPI -- without the sink's
+    internal lock, a read iterating the deque while a write appends to it
+    can raise "deque mutated during iteration"."""
+    sink = WebUiToastAlertSink()
+    errors: list[BaseException] = []
+
+    def pusher():
+        for _ in range(500):
+            sink.notify_failure(_CTX)
+
+    def reader():
+        for _ in range(500):
+            try:
+                sink.toasts_since(0)
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+    threads = [threading.Thread(target=pusher) for _ in range(4)] + [
+        threading.Thread(target=reader) for _ in range(4)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
 
 
 def test_build_alert_sink_from_env_selects_webui_toast(
