@@ -44,6 +44,7 @@ export default function App() {
     DEFAULT_DIFF_SETTINGS,
   );
   const [batchBusy, setBatchBusy] = useState(false);
+  const [openAlertCount, setOpenAlertCount] = useState(0);
 
   // Guards against out-of-order responses: if the user switches instructions
   // again before an in-flight refresh resolves, that stale response must not
@@ -104,6 +105,34 @@ export default function App() {
       .catch((e) => setBanner(describeApiError(e)));
   }, [refreshInstructions]);
 
+  const refreshOpenAlertCount = useCallback(async () => {
+    try {
+      const rows = await api.getDashboard();
+      setOpenAlertCount(
+        rows.reduce((sum, row) => sum + row.open_alert_count, 0),
+      );
+    } catch {
+      // Non-critical background refresh -- leave the last known count as-is.
+    }
+  }, []);
+
+  // Feature: unread-FAIL awareness. A toast only fires while this tab is
+  // open and visible; the dashboard's open_alert_count survives regardless,
+  // so polling it (rather than counting toasts) also covers failures from
+  // CI or another browser tab.
+  useEffect(() => {
+    refreshOpenAlertCount();
+    const interval = window.setInterval(refreshOpenAlertCount, 20000);
+    return () => window.clearInterval(interval);
+  }, [refreshOpenAlertCount]);
+
+  useEffect(() => {
+    document.title =
+      openAlertCount > 0
+        ? `(${openAlertCount}) Visual Regression QA Tool`
+        : "Visual Regression QA Tool";
+  }, [openAlertCount]);
+
   useEffect(() => {
     if (!selectedInstructionId) return;
     refreshInstructionDetail(selectedInstructionId).catch((e) =>
@@ -162,6 +191,7 @@ export default function App() {
         allowCenterCrop: diffSettings.allowCenterCrop,
       });
       await refreshInstructionDetail(selectedInstructionId);
+      refreshOpenAlertCount();
     } catch (e) {
       setBanner(describeApiError(e));
     } finally {
@@ -181,6 +211,7 @@ export default function App() {
         allowCenterCrop: diffSettings.allowCenterCrop,
       });
       await refreshInstructionDetail(selectedInstructionId);
+      refreshOpenAlertCount();
 
       const failures = response.results.filter((r) => !r.ok);
       if (failures.length > 0) {
@@ -228,7 +259,7 @@ export default function App() {
     <div
       style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}
     >
-      <ToastStack />
+      <ToastStack onOpenInstruction={handleOpenFromDashboard} />
       <header
         style={{
           padding: "var(--spacing-md) var(--spacing-xl)",
@@ -254,8 +285,33 @@ export default function App() {
           <button
             className={`btn btn-sm ${tab === "dashboard" ? "btn-secondary" : "btn-tertiary"}`}
             onClick={() => setTab("dashboard")}
+            style={{ position: "relative" }}
           >
             ダッシュボード
+            {openAlertCount > 0 && (
+              <span
+                aria-label={`未解決のFAILが${openAlertCount}件`}
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -6,
+                  minWidth: 18,
+                  height: 18,
+                  padding: "0 4px",
+                  borderRadius: 9,
+                  background: "var(--color-fail)",
+                  color: "var(--color-on-primary)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 1,
+                }}
+              >
+                {openAlertCount}
+              </span>
+            )}
           </button>
           <button
             className={`btn btn-sm ${tab === "tool" ? "btn-secondary" : "btn-tertiary"}`}

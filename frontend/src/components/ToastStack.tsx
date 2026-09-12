@@ -5,11 +5,17 @@ import type { ToastItem } from "../types";
 const POLL_INTERVAL_MS = 4000;
 const AUTO_DISMISS_MS = 6000;
 
+interface Props {
+  /** Jump straight to the instruction a toast is about, same handler the
+   * Dashboard uses to open an instruction from its table. */
+  onOpenInstruction: (instructionId: string) => void;
+}
+
 /** Phase 6, feature 4 (stack toast): polls GET /api/alerts/toasts and renders
  * new entries as a stack of auto-dismissing toasts. Backed by
  * WebUiToastAlertSink -- when a different sink is configured the endpoint
  * always returns an empty list, so this component just renders nothing. */
-export function ToastStack() {
+export function ToastStack({ onOpenInstruction }: Props) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const lastIdRef = useRef(0);
   const syncedRef = useRef(false);
@@ -74,10 +80,22 @@ export function ToastStack() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          role="button"
+          tabIndex={0}
+          title="クリックして該当の撮影指示を開く"
           className={`toast ${toast.severity === "error" ? "toast-error" : "toast-success"}`}
-          onClick={() =>
-            setToasts((prev) => prev.filter((t) => t.id !== toast.id))
-          }
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            onOpenInstruction(toast.instruction_id);
+            setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onOpenInstruction(toast.instruction_id);
+              setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+            }
+          }}
         >
           {toast.message}
         </div>

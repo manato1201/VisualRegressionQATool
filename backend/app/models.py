@@ -157,6 +157,7 @@ class ToastOut(BaseModel):
     severity: str
     message: str
     created_at: str
+    instruction_id: str
 
 
 class ToastListResponse(BaseModel):

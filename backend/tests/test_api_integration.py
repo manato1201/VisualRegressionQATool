@@ -346,6 +346,7 @@ def test_toasts_endpoint_surfaces_failure_toast_from_a_regression(
     assert len(toasts["toasts"]) == 1
     assert toasts["toasts"][0]["severity"] == "error"
     assert "ToastScene" in toasts["toasts"][0]["message"]
+    assert toasts["toasts"][0]["instruction_id"] == instruction_id
     assert toasts["last_id"] == toasts["toasts"][0]["id"]
 
     # since_id filters out already-seen toasts.
@@ -353,3 +354,50 @@ def test_toasts_endpoint_surfaces_failure_toast_from_a_regression(
         "/api/alerts/toasts", params={"since_id": toasts["last_id"]}
     ).json()
     assert followup["toasts"] == []
+
+
+def test_toasts_endpoint_finds_toast_sink_nested_inside_composite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """VRQA_ALERT_SINK=composite (e.g. webui_toast + a Slack webhook) must
+    still surface toasts -- GET /api/alerts/toasts has to look inside the
+    CompositeAlertSink, not just check the top-level sink's type."""
+    monkeypatch.setenv("VRQA_DB_PATH", str(tmp_path / "api.sqlite3"))
+    monkeypatch.setenv("VRQA_BLOB_ROOT", str(tmp_path / "blobs"))
+    monkeypatch.setenv("VRQA_ALERT_SINK", "composite")
+    monkeypatch.setenv("VRQA_ALERT_SINK_KINDS", "webui_toast,noop")
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        instr = client.post(
+            "/api/instructions", json={"scene_or_level_id": "CompositeScene"}
+        ).json()
+        instruction_id = instr["instruction_id"]
+
+        baseline = client.post(
+            "/api/captures",
+            data={"instruction_id": instruction_id, "build_version": "v1"},
+            files={"file": ("v1.png", _png_bytes((10, 20, 30)), "image/png")},
+        ).json()
+        client.post(
+            "/api/references/promote",
+            json={
+                "captured_image_id": baseline["captured_image_id"],
+                "approved_by": "qa-bot",
+            },
+        )
+        regressed = client.post(
+            "/api/captures",
+            data={"instruction_id": instruction_id, "build_version": "v2"},
+            files={"file": ("v2.png", _png_bytes((250, 5, 5)), "image/png")},
+        ).json()
+        diff = client.post(
+            "/api/diffs/run",
+            json={"captured_image_id": regressed["captured_image_id"]},
+        ).json()
+        assert diff["evaluation_result"]["verdict"] == "fail"
+
+        toasts = client.get("/api/alerts/toasts").json()
+        assert len(toasts["toasts"]) == 1
+        assert toasts["toasts"][0]["instruction_id"] == instruction_id

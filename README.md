@@ -131,7 +131,8 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `noop` | 何もしない(既定) |
 | `webhook` | `VRQA_WEBHOOK_URL` へPOST |
 | `github` | `VRQA_GITHUB_OWNER` / `VRQA_GITHUB_REPO` / `VRQA_GITHUB_TOKEN` を指定し、`visual-regression-fail`ラベルでIssueを自動作成/自動クローズ |
-| `webui_toast` | 差分ビューアWeb UI上にスタックトースト(積み重ね通知)としてfail/recoveryを表示。DBスキーマ追加なしのインメモリキューで、フロントエンドが `GET /api/alerts/toasts?since_id=` をポーリングして描画する(`frontend/src/components/ToastStack.tsx`) |
+| `webui_toast` | 差分ビューアWeb UI上にスタックトースト(積み重ね通知)としてfail/recoveryを表示。DBスキーマ追加なしのインメモリキューで、フロントエンドが `GET /api/alerts/toasts?since_id=` をポーリングして描画する(`frontend/src/components/ToastStack.tsx`)。トーストをクリックすると該当の撮影指示に直接ジャンプする |
+| `composite` | 複数sinkを同時に使う。`VRQA_ALERT_SINK_KINDS`にカンマ区切りで列挙(例: `VRQA_ALERT_SINK_KINDS=webui_toast,webhook`)。各sinkが発行するexternal_refは内部で個別に記憶し、復旧(recovery)時にそれぞれ正しいrefで通知する |
 
 ## ディレクトリ構成
 
@@ -150,7 +151,7 @@ VisualRegressionQATool/
 │   │   ├── alert_sink.py    # IAlertSinkと実装群
 │   │   ├── routers/         # instructions/captures/references/diffs/runs/alerts
 │   │   └── main.py          # FastAPIアプリ組み立て
-│   └── tests/                # pytest 58件
+│   └── tests/                # pytest 67件
 ├── frontend/
 │   └── src/
 │       ├── theme.css              # Zapier風デザイントークン
