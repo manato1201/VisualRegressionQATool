@@ -260,3 +260,76 @@ public interface IAlertSink
 - `ProfilingTool_DESIGN.md` / `ToolOrchestrationHub_DESIGN.md` — アラートsink(Phase 5)の後継差し替え先候補
 
 **優先度注記:** 本ツールは手堅い。pixel diff・DB・CIアラートはいずれも実績のある技術であり、新規性のリスクは低い。唯一の技術リスクは対象エンジン(Unity HDRP)での真の決定性確保——フレーム・シード・ジッターの完全一致——であり、特にヘッドレスGPU描画モード(Phase 2の`-batchmode`/`-nographics`検討)は早期スパイクで潰すべき課題として明記する。それ以外のフェーズは具体的にコミットしてよい規模感である。
+
+---
+
+## Phase 6: 差分ビューアUI強化(2026-09-09追記)
+
+**背景**: X上の@ozwxy氏の実演(GPT-6 Astraによる高品質UIコンポーネント生成デモ)を受け、ユーザーがUI/アニメーション面の強化を明示的に要望。既存Phase5の差分ビューアを、以下5種のコンポーネントで強化する。新規データモデルは追加せず、Phase3の`DiffImage`/`EvaluationResult`、Phase4の履歴チェーン、Phase5の差分ビューアをそのまま参照データとして利用する。
+
+### 1. フォーカスリング(Focus Ring)
+差分ビューア上で`diffPixelCount`が集中する領域にホバー/選択した際、リング状ハイライトで囲む。対象座標は`diffImage.diffImagePath`の画像をクライアント側で画素クラスタ集計して求め、新規APIは追加しない。
+```css
+.diff-focus-ring {
+  outline: 3px solid var(--diff-accent, #ff5252);
+  outline-offset: 2px;
+  border-radius: 6px;
+  animation: focus-ring-pulse 1.2s ease-in-out infinite;
+}
+@keyframes focus-ring-pulse {
+  0%, 100% { outline-color: rgba(255,82,82,0.9); }
+  50% { outline-color: rgba(255,82,82,0.4); }
+}
+```
+
+### 2. ドットチャート(Dot Chart)
+Phase4の履歴チェーンを時系列ドットチャート化する。1コミット(`captured_image.build_version`)=1ドット、色は`evaluation_result.verdict`(pass=緑/fail=赤/flaky=黄)。Phase4のfirst-bad-commitクエリの結果行はチャート上でリング付きドットとして強調し、劣化開始点を一目で把握できるようにする。
+```ts
+type DotDatum = { buildVersion: string; evaluatedAt: string; verdict: 'pass'|'fail'|'flaky'; isFirstBad: boolean };
+// evaluation_result を evaluated_at ASC でクエリした結果をそのままマッピングする
+const dots: DotDatum[] = results.map(r => ({
+  buildVersion: r.build_version, evaluatedAt: r.evaluated_at,
+  verdict: r.verdict, isFirstBad: r.evaluation_result_id === firstBadCommitResultId,
+}));
+```
+
+### 3. スプリットフラップ(Split-flap)
+`diffPixelCount`/`diffPercentage`が新しい`EvaluationResult`到着で更新される際、旧値→新値へフリップ演出する。`rotateX`によるカード反転を桁単位で適用する古典的split-flap実装を用いる。
+```css
+.flap-digit { perspective: 200px; }
+.flap-digit .card {
+  transform-style: preserve-3d;
+  transition: transform 0.35s ease-in;
+}
+.flap-digit.flipping .card { transform: rotateX(-180deg); }
+```
+
+### 4. スタックトースト(Stack Toast)
+Phase5の`IAlertSink`をWeb UI側でも実装し(`WebUiToastAlertSink`)、`NotifyFailure`/`NotifyRecovery`を積み重なるトースト通知として表示する。既存インターフェースは無改変で、実装を1つ追加するのみ。
+```csharp
+public class WebUiToastAlertSink : IAlertSink
+{
+    public void NotifyFailure(EvaluationResult result, DiffImage diff)
+        => ToastQueue.Push(new Toast(Severity.Error, $"{diff.DiffImageId} verdict=fail ({diff.DiffPixelCount}px)"));
+    public void NotifyRecovery(string instructionId)
+        => ToastQueue.Push(new Toast(Severity.Success, $"{instructionId} recovered"));
+}
+```
+
+### 5. セグメントレール(Segment Rail)
+Phase5の差分ビューアの表示モード切替を横並びセグメントコントロールに置き換える。既存の「サイドバイサイド/オーバーレイ」2モードに、本フェーズの「ドットチャート履歴」を第3モードとして並置する。
+```html
+<div class="segment-rail" role="tablist" aria-label="diff view mode">
+  <button role="tab" aria-selected="true" data-mode="side-by-side">サイドバイサイド</button>
+  <button role="tab" aria-selected="false" data-mode="overlay">オーバーレイ</button>
+  <button role="tab" aria-selected="false" data-mode="dot-history">ドットチャート履歴</button>
+</div>
+```
+
+**検証チェックリスト:**
+- [ ] フォーカスリングが`diffPixelCount`集中領域のホバー/選択時のみ表示され、他領域では非表示のままである
+- [ ] ドットチャート上でfirst-bad-commitクエリの結果行が他のドットと視覚的に区別できる(リング等)
+- [ ] `diffPixelCount`/`diffPercentage`の値更新時にsplit-flapアニメーションが旧値→新値へ正しく遷移する
+- [ ] `WebUiToastAlertSink`が`IAlertSink`を実装し、既存の`GitHubIssueAlertSink`等と設定切り替えのみで共存できる
+- [ ] セグメントレールの3モード切替が、それぞれ対応するビューア表示(サイドバイサイド/オーバーレイ/ドットチャート履歴)に正しく切り替わる
+- [ ] 本フェーズで新規テーブル・新規スキーマフィールドが追加されていない(Phase3/4の既存スキーマのみを参照している)

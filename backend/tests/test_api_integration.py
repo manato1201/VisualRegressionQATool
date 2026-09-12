@@ -291,3 +291,65 @@ def test_two_captures_of_the_same_build_version_disagreeing_are_reconciled_as_fl
     flaky_build_runs = [r for r in runs if r["build_version"] == "flaky-build"]
     assert len(flaky_build_runs) == 2
     assert all(r["verdict"] == "flaky" for r in flaky_build_runs)
+
+
+def test_toasts_endpoint_returns_empty_with_default_noop_sink(client: TestClient):
+    resp = client.get("/api/alerts/toasts")
+    assert resp.status_code == 200
+    assert resp.json() == {"toasts": [], "last_id": 0}
+
+
+@pytest.fixture()
+def toast_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setenv("VRQA_DB_PATH", str(tmp_path / "api.sqlite3"))
+    monkeypatch.setenv("VRQA_BLOB_ROOT", str(tmp_path / "blobs"))
+    monkeypatch.setenv("VRQA_ALERT_SINK", "webui_toast")
+
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
+
+
+def test_toasts_endpoint_surfaces_failure_toast_from_a_regression(
+    toast_client: TestClient,
+):
+    instr = toast_client.post(
+        "/api/instructions", json={"scene_or_level_id": "ToastScene"}
+    ).json()
+    instruction_id = instr["instruction_id"]
+
+    baseline = toast_client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v1"},
+        files={"file": ("v1.png", _png_bytes((10, 20, 30)), "image/png")},
+    ).json()
+    toast_client.post(
+        "/api/references/promote",
+        json={
+            "captured_image_id": baseline["captured_image_id"],
+            "approved_by": "qa-bot",
+        },
+    )
+
+    regressed = toast_client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v2"},
+        files={"file": ("v2.png", _png_bytes((250, 5, 5)), "image/png")},
+    ).json()
+    diff = toast_client.post(
+        "/api/diffs/run", json={"captured_image_id": regressed["captured_image_id"]}
+    ).json()
+    assert diff["evaluation_result"]["verdict"] == "fail"
+
+    toasts = toast_client.get("/api/alerts/toasts").json()
+    assert len(toasts["toasts"]) == 1
+    assert toasts["toasts"][0]["severity"] == "error"
+    assert "ToastScene" in toasts["toasts"][0]["message"]
+    assert toasts["last_id"] == toasts["toasts"][0]["id"]
+
+    # since_id filters out already-seen toasts.
+    followup = toast_client.get(
+        "/api/alerts/toasts", params={"since_id": toasts["last_id"]}
+    ).json()
+    assert followup["toasts"] == []

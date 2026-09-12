@@ -110,3 +110,17 @@ export interface DashboardRow {
   has_active_reference: boolean;
   open_alert_count: number;
 }
+
+export type ToastSeverity = "error" | "success";
+
+export interface ToastItem {
+  id: number;
+  severity: ToastSeverity;
+  message: string;
+  created_at: string;
+}
+
+export interface ToastListResponse {
+  toasts: ToastItem[];
+  last_id: number;
+}

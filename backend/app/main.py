@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
 from .alert_sink import build_alert_sink_from_env
-from .routers import captures, diffs, instructions, references, runs
+from .routers import alerts, captures, diffs, instructions, references, runs
 from .storage import DEFAULT_BLOB_ROOT, BlobStore
 
 
@@ -39,6 +39,7 @@ app.include_router(captures.router)
 app.include_router(references.router)
 app.include_router(diffs.router)
 app.include_router(runs.router)
+app.include_router(alerts.router)
 
 
 @app.get("/api/health")
