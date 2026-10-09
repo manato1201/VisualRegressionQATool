@@ -16,13 +16,17 @@ from .storage import DEFAULT_BLOB_ROOT, BlobStore
 async def lifespan(app: FastAPI):
     db_path = os.environ.get("VRQA_DB_PATH", db.DEFAULT_DB_PATH)
     blob_root = os.environ.get("VRQA_BLOB_ROOT", DEFAULT_BLOB_ROOT)
-    conn = db.connect(db_path)
-    db.init_db(conn)
-    app.state.conn = conn
+    # Schema/migrations run once here on a throwaway connection; requests open
+    # their own (see deps.get_conn).
+    init_conn = db.connect(db_path)
+    try:
+        db.init_db(init_conn)
+    finally:
+        init_conn.close()
+    app.state.db_path = db_path
     app.state.blob_store = BlobStore(blob_root)
     app.state.alert_sink = build_alert_sink_from_env()
     yield
-    conn.close()
 
 
 app = FastAPI(title="VisualRegressionQATool API", version="0.1.0", lifespan=lifespan)

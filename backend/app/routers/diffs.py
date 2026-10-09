@@ -92,6 +92,8 @@ def _execute_diff_run(
         diff_pixel_count=result.diff_pixel_count,
         diff_percentage=result.diff_percentage,
         resolution_note=result.resolution_note,
+        max_diff_pixels=max_diff_pixels,
+        per_pixel_tolerance=per_pixel_tolerance,
     )
     evaluation_result = repository.create_evaluation_result(
         conn, diff_image_id=diff_image.diff_image_id, verdict=result.verdict
@@ -275,4 +277,5 @@ def get_diff_image_bytes(
     path: Path = blobs.abs_path_for(out.diff_image_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail="blob missing")
-    return FileResponse(path)
+    # See the matching note in routers/captures.py.
+    return FileResponse(path, headers={"Vary": "Origin"})

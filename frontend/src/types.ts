@@ -15,6 +15,8 @@ export interface CaptureInstruction {
   jitter: number;
   warmup_frames: number;
   created_at: string;
+  fixed_time_seconds: number | null;
+  reduce_motion: boolean;
 }
 
 export interface CapturedImage {
@@ -48,6 +50,8 @@ export interface DiffImage {
   diff_percentage: number;
   created_at: string;
   resolution_note: string | null;
+  max_diff_pixels: number | null;
+  per_pixel_tolerance: number | null;
 }
 
 export interface EvaluationResult {
@@ -76,6 +80,17 @@ export interface RunRow {
   scene_or_level_id: string;
   reference_image_id: string;
   resolution_note: string | null;
+  /** Thresholds this result was judged against; null for results evaluated
+   * before they were stored. */
+  max_diff_pixels: number | null;
+  per_pixel_tolerance: number | null;
+  /** Capture conditions, shown with every result so a number is never read
+   * without knowing what produced it. */
+  resolution_width: number;
+  resolution_height: number;
+  seed: number;
+  fixed_time_seconds: number | null;
+  reduce_motion: boolean;
 }
 
 export interface FirstBadCommit {
@@ -106,6 +121,9 @@ export interface DashboardRow {
   latest_evaluated_at: string | null;
   latest_diff_pixel_count: number | null;
   latest_diff_percentage: number | null;
+  latest_captured_image_id: string | null;
+  latest_diff_image_id: string | null;
+  latest_max_diff_pixels: number | null;
   total_runs: number;
   has_active_reference: boolean;
   open_alert_count: number;

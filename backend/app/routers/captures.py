@@ -88,7 +88,11 @@ def get_captured_image_bytes(
     path: Path = blobs.abs_path_for(out.image_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail="blob missing")
-    return FileResponse(path)
+    # Vary: Origin -- the same URL is loaded both as a plain <img> (thumbnails)
+    # and as a CORS <img crossorigin> (the diff viewer's pixel sampling). Without
+    # Vary the browser cache can hand the CORS request the plain response, which
+    # has no Access-Control-Allow-Origin, and the image breaks.
+    return FileResponse(path, headers={"Vary": "Origin"})
 
 
 @router.delete("/{captured_image_id}", status_code=204)

@@ -1,3 +1,4 @@
+import { formatCount, formatPercent } from "../format";
 import type { FirstBadCommit, RunRow } from "../types";
 import { VERDICT_DESCRIPTION, VerdictBadge } from "./VerdictBadge";
 
@@ -37,33 +38,14 @@ export function RunHistory({
         }}
         className="text-body-mid"
       >
-        <span>
-          <span
-            className="badge-pill badge-pass"
-            style={{ marginRight: "var(--spacing-xs)" }}
-          >
-            Pass
+        {(["pass", "fail", "flaky"] as const).map((verdict) => (
+          <span key={verdict}>
+            <span style={{ marginRight: "var(--spacing-xs)" }}>
+              <VerdictBadge verdict={verdict} />
+            </span>
+            {VERDICT_DESCRIPTION[verdict]}
           </span>
-          {VERDICT_DESCRIPTION.pass}
-        </span>
-        <span>
-          <span
-            className="badge-pill badge-fail"
-            style={{ marginRight: "var(--spacing-xs)" }}
-          >
-            Fail
-          </span>
-          {VERDICT_DESCRIPTION.fail}
-        </span>
-        <span>
-          <span
-            className="badge-pill badge-flaky"
-            style={{ marginRight: "var(--spacing-xs)" }}
-          >
-            Flaky
-          </span>
-          {VERDICT_DESCRIPTION.flaky}
-        </span>
+        ))}
       </div>
 
       {firstBadCommit && (
@@ -108,11 +90,21 @@ export function RunHistory({
               <th style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
                 Build
               </th>
-              <th style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                Diff Pixels
+              <th
+                style={{
+                  padding: "var(--spacing-sm) var(--spacing-md)",
+                  textAlign: "right",
+                }}
+              >
+                差分ピクセル
               </th>
-              <th style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                Diff %
+              <th
+                style={{
+                  padding: "var(--spacing-sm) var(--spacing-md)",
+                  textAlign: "right",
+                }}
+              >
+                差分率
               </th>
               <th style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
                 Evaluated At
@@ -159,11 +151,23 @@ export function RunHistory({
                     </span>
                   )}
                 </td>
-                <td style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                  {run.diff_pixel_count.toLocaleString()}
+                <td
+                  className="num"
+                  style={{
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    textAlign: "right",
+                  }}
+                >
+                  {formatCount(run.diff_pixel_count)}
                 </td>
-                <td style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                  {run.diff_percentage.toFixed(4)}%
+                <td
+                  className="num"
+                  style={{
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    textAlign: "right",
+                  }}
+                >
+                  {formatPercent(run.diff_percentage)}
                 </td>
                 <td style={{ padding: "var(--spacing-sm) var(--spacing-md)" }}>
                   {new Date(run.evaluated_at).toLocaleString()}

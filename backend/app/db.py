@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS capture_instruction (
     seed INTEGER NOT NULL,
     jitter REAL NOT NULL,
     warmup_frames INTEGER NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    fixed_time_seconds REAL,
+    reduce_motion INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS captured_image (
@@ -59,7 +61,9 @@ CREATE TABLE IF NOT EXISTS diff_image (
     diff_pixel_count INTEGER NOT NULL,
     diff_percentage REAL NOT NULL,
     created_at TEXT NOT NULL,
-    resolution_note TEXT
+    resolution_note TEXT,
+    max_diff_pixels INTEGER,
+    per_pixel_tolerance INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS evaluation_result (
@@ -105,6 +109,19 @@ def connect(db_path: Path | str = DEFAULT_DB_PATH) -> sqlite3.Connection:
 # ignoring the error SQLite raises when the column is already there.
 _COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("diff_image", "resolution_note", "ALTER TABLE diff_image ADD COLUMN resolution_note TEXT"),
+    # Judgement thresholds are kept with each result so the UI can show
+    # "0.31% (許容 N px)" without guessing; NULL on rows evaluated before this.
+    ("diff_image", "max_diff_pixels", "ALTER TABLE diff_image ADD COLUMN max_diff_pixels INTEGER"),
+    ("diff_image", "per_pixel_tolerance", "ALTER TABLE diff_image ADD COLUMN per_pixel_tolerance INTEGER"),
+    # Capture-determinism conditions (improvement plan Q1/U4): NULL fixed
+    # time means "not pinned"; reduce_motion defaults on because freezing
+    # animation is the safe default for a strict pixel comparison.
+    ("capture_instruction", "fixed_time_seconds", "ALTER TABLE capture_instruction ADD COLUMN fixed_time_seconds REAL"),
+    (
+        "capture_instruction",
+        "reduce_motion",
+        "ALTER TABLE capture_instruction ADD COLUMN reduce_motion INTEGER NOT NULL DEFAULT 1",
+    ),
 )
 
 

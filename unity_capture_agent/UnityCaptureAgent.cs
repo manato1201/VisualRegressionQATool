@@ -98,6 +98,15 @@ namespace VisualRegressionQATool.CaptureAgent
             // inject the seeded RNG service, disable TAA camera jitter via
             // HDAdditionalCameraData. Left as a project-specific hook since
             // the exact calls depend on your render pipeline (Built-in/URP/HDRP).
+            //
+            // Animation determinism (improvement plan Q1): the backend's
+            // CaptureInstruction carries fixed_time_seconds / reduce_motion.
+            // When fixed_time_seconds is set, advance the animation clock to
+            // exactly that time (e.g. Animator.Update / PlayableDirector.time
+            // + Evaluate(), then Time.timeScale = 0) before capturing, and
+            // when reduce_motion is true, disable camera shake / particle
+            // emission / looping UI tweens. Python-side equivalent:
+            // capture_agents.determinism.apply_instruction_conditions.
         }
 
         public RawFrame Capture(CaptureSource source)

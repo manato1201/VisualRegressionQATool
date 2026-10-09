@@ -6,7 +6,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from app.diff_engine import ImageDimensionMismatchError, PixelDiffEngine
+from app.diff_engine import (
+    HIGHLIGHT_COLOR,
+    ImageDimensionMismatchError,
+    PixelDiffEngine,
+)
 
 WIDTH, HEIGHT = 64, 48
 
@@ -57,12 +61,32 @@ def test_only_modified_rectangle_is_highlighted_no_false_positives_outside():
     assert result.verdict == "fail"
 
     diff_arr = np.asarray(result.diff_image)
-    highlight_mask = np.all(diff_arr == (255, 0, 0), axis=2)
+    highlight_mask = np.all(diff_arr == HIGHLIGHT_COLOR, axis=2)
     assert highlight_mask.sum() == expected_count
     # Every highlighted pixel is inside the modified rectangle.
     ys, xs = np.where(highlight_mask)
     assert ys.min() >= y0 and ys.max() < y1
     assert xs.min() >= x0 and xs.max() < x1
+
+
+def test_highlight_colour_cannot_be_confused_with_the_ui_fail_red():
+    """Design decision (improvement plan P1): a diff pixel is a fixed
+    magenta, distinct from the UI's red 'fail' verdict colour, and dimmed
+    background pixels can never reach it (the dim factor caps every channel
+    well below 255), so the frontend can find diff pixels by exact colour."""
+    assert HIGHLIGHT_COLOR != (255, 0, 0)
+
+    reference_arr = np.full((HEIGHT, WIDTH, 3), 255, dtype=np.uint8)
+    captured_arr = reference_arr.copy()
+    captured_arr[0, 0] = (0, 0, 0)  # one diff pixel on an otherwise white frame
+    result = PixelDiffEngine().compare_bytes(
+        _to_bytes(Image.fromarray(captured_arr, mode="RGB")),
+        _to_bytes(Image.fromarray(reference_arr, mode="RGB")),
+    )
+
+    diff_arr = np.asarray(result.diff_image)
+    exact = np.all(diff_arr == HIGHLIGHT_COLOR, axis=2)
+    assert exact.sum() == 1 and exact[0, 0]
 
 
 def test_strict_settings_fail_on_any_single_pixel_regression():

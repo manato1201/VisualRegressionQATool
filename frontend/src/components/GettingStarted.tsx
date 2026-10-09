@@ -1,3 +1,5 @@
+import { VerdictBadge } from "./VerdictBadge";
+
 const STEPS = [
   {
     title: "1. 撮影指示(Capture Instruction)を作成",
@@ -13,11 +15,11 @@ const STEPS = [
   },
   {
     title: "4. 差分実行",
-    body: "2枚目以降の撮影画像で「差分実行」を押すと、Referenceとの厳密なピクセル差分比較が走ります。差分ハイライト画像と評価結果(Pass/Fail)が生成されます。",
+    body: "2枚目以降の撮影画像で「差分実行」を押すと、Referenceとの厳密なピクセル差分比較が走ります。差分ハイライト画像と評価結果(合格/不合格)が生成されます。",
   },
   {
     title: "5. 結果を確認",
-    body: "実行履歴テーブルの行をクリックするとDiff Viewerでサイドバイサイド/オーバーレイ表示を切り替えて確認できます。Failが発生すると「First Bad Commit」として最初に壊れたbuild versionが表示されます。",
+    body: "実行履歴テーブルの行をクリックするとDiff Viewerで「差分 / 並べて / スライダー / 点滅」の表示を切り替えて確認できます(背景色・ズームも変更可能)。不合格が発生すると「First Bad Commit」として最初に壊れたbuild versionが表示されます。",
   },
 ];
 
@@ -45,19 +47,25 @@ export function GettingStarted() {
       </ol>
 
       <div className="card-outline" style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
-        <h3 style={{ fontSize: 18 }}>PASS / FAILの意味</h3>
+        <h3 style={{ fontSize: 18 }}>合格 / 不合格 / 未検査の意味</h3>
         <p style={{ margin: 0 }}>
-          <span className="badge-pill badge-pass" style={{ marginRight: "var(--spacing-sm)" }}>
-            Pass
+          <span style={{ marginRight: "var(--spacing-sm)" }}>
+            <VerdictBadge verdict="pass" />
           </span>
           差分ピクセル数が許容範囲(<code>max_diff_pixels</code>)以内で、Referenceと見た目が一致しているとみなされた状態です。
         </p>
         <p style={{ margin: 0 }}>
-          <span className="badge-pill badge-fail" style={{ marginRight: "var(--spacing-sm)" }}>
-            Fail
+          <span style={{ marginRight: "var(--spacing-sm)" }}>
+            <VerdictBadge verdict="fail" />
           </span>
           差分ピクセル数が許容範囲を超えた状態です。意図しない見た目の変化(回帰)が起きた可能性があるので、Diff
-          Viewerで実際の差分を確認してください。
+          Viewerで実際の差分(<span className="diff-swatch" aria-hidden="true" /> マゼンタ色の画素)を確認してください。
+        </p>
+        <p style={{ margin: 0 }}>
+          <span style={{ marginRight: "var(--spacing-sm)" }}>
+            <VerdictBadge verdict={null} />
+          </span>
+          まだ差分を実行していない画面です。ダッシュボードのボードでは灰色の破線カードで表示され、検査の抜けに気づけます。
         </p>
         <p style={{ margin: 0 }} className="text-mute">
           ※撮影画像とReference画像の解像度が異なる場合は比較自体ができず、エラーになります(サイズを揃えてください)。

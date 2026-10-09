@@ -35,7 +35,11 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-HIGHLIGHT_COLOR = (255, 0, 0)
+# Magenta, not red: red is the UI's "fail" colour (VerdictBadge, alerts), and a
+# diff pixel must never be mistaken for a verdict. Must stay in sync with
+# DIFF_HIGHLIGHT_RGB in frontend/src/diffClusters.ts. Diff images written
+# before this change used (255, 0, 0); the frontend still recognises both.
+HIGHLIGHT_COLOR = (255, 0, 255)
 BACKGROUND_DIM_FACTOR = 0.35
 _CONNECTIVITY_8 = np.ones((3, 3), dtype=bool)
 

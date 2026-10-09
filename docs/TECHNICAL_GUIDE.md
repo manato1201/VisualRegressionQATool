@@ -68,7 +68,7 @@ def compare_bytes(
 2. `captured`・`reference`のRGB各チャンネルの絶対差を計算し、`per_pixel_tolerance`を超える画素を`diff_mask`としてマークする。
 3. `min_diff_region_pixels > 1`の場合、`scipy.ndimage.label`で8連結の連結成分ラベリングを行い、画素数が閾値未満の塊を`diff_mask`から除去する。**これはSSIMのような類似度スコアではなく、あくまで「厳密な画素差分マスクに対する幾何的な後処理」**であり、Phase 3の「知覚的差分は採用しない」という方針とは矛盾しない。
 4. `diff_pixel_count <= max_diff_pixels`ならverdict `pass`、そうでなければ`fail`。
-5. ハイライト画像は、撮影画像を暗く(35%輝度)した背景の上に、diff画素だけを赤(`255,0,0`)で重ねて生成する。
+5. ハイライト画像は、撮影画像を暗く(35%輝度)した背景の上に、diff画素だけをマゼンタ(`255,0,255`)で重ねて生成する。UIの「不合格」の赤と混同させないための選択で、暗くした背景の各チャンネルは約90を超えないため、この色は差分画素の確実な目印になる(フロントの領域検出がこれを利用する。2026-10以前に生成した画像は赤`255,0,0`で、フロントは両方を認識する)。
 
 ### 3.5 `queries.py` — 履歴クエリ
 
@@ -125,14 +125,21 @@ class IAlertSink(Protocol):
 | GET | `/api/runs?instruction_id=` | 実行履歴一覧(JOIN済みビュー) |
 | GET | `/api/runs/first-bad-commit/{instruction_id}` | first-bad-commitクエリ |
 
+補足(2026-10):
+- **DB接続はリクエストごと**(`deps.get_conn`)。以前は1本の`sqlite3.Connection`を全リクエストスレッドで共有しており、同時リクエスト(ボードのサムネイル等)で`sqlite3.InterfaceError`→HTTP 500になることがあった。WALモードなので読み取りは並行でき、「読んでから書く」複数文の操作は従来どおり`repository.db_write_lock`で直列化する。
+- **画像エンドポイントは`Vary: Origin`を返す**。同じURLが通常の`<img>`(サムネイル)とCORS付き`<img crossorigin>`(ピクセル採取用)の両方で読まれるため、これが無いとブラウザが前者の応答を後者に使い回してCORSエラーになる。
+- `RunRow`は判定に使った許容値(`max_diff_pixels`/`per_pixel_tolerance`)と撮影条件(解像度・`seed`・`fixed_time_seconds`・`reduce_motion`)を含む。`/api/runs/dashboard`は最新の撮影画像/差分画像IDを返す(ボードのサムネイル用)。
+
 ## 5. フロントエンド構成
 
 - `App.tsx`: 全画面状態(選択中instruction・撮影画像一覧・実行履歴・diff設定・banner等)を集中管理する唯一のstateホルダー。子コンポーネントはpropsで受け取ったcallbackを呼ぶだけの設計。
 - `DiffSettings.tsx`: `per_pixel_tolerance` / `max_diff_pixels` / `min_diff_region_pixels`を調整するUI。既定値は設計書通り全て0(または1)で、変更しない限り従来の厳密比較のまま動く。
-- `DiffViewer.tsx`: サイドバイサイド(Captured/Reference/Diff Highlightを横並び)とオーバーレイ(Referenceの上にDiff Highlightを可変不透明度で重ねる)の2モード。`reference_image_id`から実際の画像URLを解決するため、`GET /api/references/{id}`を都度呼び出す。
+- `DiffViewer.tsx`: 表示モード4種(差分=Referenceの上にDiff Highlightを可変不透明度で重ねる/並べて=Captured・Reference・Diffを横並び/スライダー=境界線で左右比較/点滅=0.625Hzで交互表示)、背景(白/黒/市松)、ズーム(フィット/100%)、結果パネル(`diffviewer/ResultPanel`)、下に履歴タイムライン(`DotChart`)。部品は`components/diffviewer/`に分割。`reference_image_id`から実際の画像URLを解決するため、`GET /api/references/{id}`を都度呼び出す。フォーカスリング・クリック固定の拡大表示は差分画像をクライアント側で領域検出して実現(`diffClusters.ts`、新規APIなし)。
+- `Dashboard.tsx`: 画面一覧ボード。1撮影指示=1カード、未検査は灰色の破線。列数は`format.ts`の`pickColumns`が幅と件数から決める。
+- `format.ts`: 表示規約(差分率2桁・`<0.01%`・許容値併記・撮影条件)を1か所に集約。`theme.ts`: ライト/ダークの保存と適用。
 - `CapturePanel.tsx`: アップロードフォーム・DiffSettings・**複数選択チェックボックス+一括実行ボタン**・各カードの昇格/差分実行/削除ボタンをまとめたメインパネル。
 - `GettingStarted.tsx`: 初回ユーザー向けの使い方ガイド。撮影指示が0件のときは自動的にこのタブが表示される。
-- `theme.css`: `VisualRegressionQATool_UI_DESIGN.md`のZapier風デザイントークン(色・タイポグラフィ・角丸12px・スペーシング)をCSS変数として定義。
+- `theme.css`: デザイントークン(色・タイポグラフィ・角丸12px・スペーシング)をCSS変数として定義。ダークテーマは`:root[data-theme="dark"]`で**色だけ**を差し替える(余白や書体は共通)。差分ピクセルの色`--color-diff`は両テーマで同一のマゼンタ。`prefers-reduced-motion`ではアニメーションを実質無効化する。
 
 ## 6. なぜ`per_pixel_tolerance=0`のままでは実運用に耐えないケースがあるか
 
