@@ -42,6 +42,25 @@ python examples/ci_diff_check.py \
   --promote-if-missing   # seed the first run's screenshot as the baseline instead of failing
 ```
 
+## Deterministic capture
+
+A strict pixel comparison is only as stable as the capture. `capture_agents.determinism` holds the engine-agnostic pieces:
+
+```python
+from capture_agents import apply_instruction_conditions, check_determinism
+
+# Copy the instruction's seed / fixed_time_seconds / reduce_motion into the source.
+source = apply_instruction_conditions(source, instruction)   # instruction = dict from GET /api/instructions
+
+# Acceptance check: capture 10 times; they must all be identical.
+report = check_determinism(agent, source, runs=10)
+assert report.identical, f"runs differing from run 0: {report.mismatched_runs}"
+```
+
+- `fixed_time_seconds` pins the animation clock (`HoudiniCaptureAgent` applies it with `hou.setTime`; it can't be combined with `extra["frame"]`). `None` means "not pinned".
+- `reduce_motion` asks the target UI to honour `prefers-reduced-motion`. For browser-based captures, `FREEZE_ANIMATIONS_CSS` is a stylesheet that removes animations and transitions — inject it before the screenshot.
+- `check_determinism` hashes the encoded images: equal hashes prove identical pixels; a mismatch means the pixels *or* the PNG encoding differ, so upload both and diff them on the backend to tell which.
+
 ## Running inside Houdini
 
 Houdini bundles its own Python interpreter (`hython`), which is the only place `capture_agents.houdini_agent` can import `hou`. Install this package into that interpreter, e.g.:

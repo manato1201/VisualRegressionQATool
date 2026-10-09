@@ -57,8 +57,18 @@ class HoudiniCaptureAgent(CaptureAgent):
 
     def prepare(self, source: CaptureSource) -> None:
         frame = source.extra.get("frame")
+        fixed_time = source.extra.get("fixed_time_seconds")
+        if frame is not None and fixed_time is not None:
+            raise ValueError(
+                "set either extra['frame'] or extra['fixed_time_seconds'], not both: "
+                "they both pin the playbar and would silently override each other"
+            )
         if frame is not None:
             hou.setFrame(frame)
+        elif fixed_time is not None:
+            # Pin the animation clock (plan Q1) -- the capture must not depend
+            # on wherever the playbar happened to be left.
+            hou.setTime(float(fixed_time))
 
         if source.kind == "view":
             self._prepare_view(source)

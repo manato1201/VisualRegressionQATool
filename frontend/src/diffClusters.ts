@@ -13,18 +13,38 @@ export interface DiffCluster {
   pixelCount: number;
 }
 
-// Must match HIGHLIGHT_COLOR in backend/app/diff_engine.py. Dimmed
-// background pixels are darkened captured-image color, which can never
-// reach pure (255,0,0): the background-dim factor caps every channel at
-// ~90, so this exact color is a reliable diff-pixel signature.
+export interface DiffClusterResult {
+  /** The largest `maxClusters` regions, biggest first. */
+  clusters: DiffCluster[];
+  /** How many regions exist in total -- can exceed `clusters.length`. */
+  total: number;
+  /** Size of the diff image itself, in the same pixel space as `clusters`. */
+  width: number;
+  height: number;
+}
+
+// Must match HIGHLIGHT_COLOR in backend/app/diff_engine.py (magenta, since
+// 2026-10; diff images written earlier used pure red, which is still
+// recognised so old results keep their focus rings). Dimmed background
+// pixels are darkened captured-image color, which can never reach 255 in any
+// channel: the background-dim factor caps every channel at ~90, so an exact
+// 255/0/(255|0) match is a reliable diff-pixel signature.
 const HIGHLIGHT_R = 255;
 const HIGHLIGHT_G = 0;
-const HIGHLIGHT_B = 0;
+const HIGHLIGHT_B_CURRENT = 255;
+const HIGHLIGHT_B_LEGACY = 0;
+
+const EMPTY: DiffClusterResult = {
+  clusters: [],
+  total: 0,
+  width: 0,
+  height: 0,
+};
 
 export async function findDiffClusters(
   diffImageUrl: string,
   maxClusters = 5,
-): Promise<DiffCluster[]> {
+): Promise<DiffClusterResult> {
   const img = new Image();
   img.crossOrigin = "anonymous";
 
@@ -39,20 +59,21 @@ export async function findDiffClusters(
 
   const width = img.naturalWidth;
   const height = img.naturalHeight;
-  if (width === 0 || height === 0) return [];
+  if (width === 0 || height === 0) return EMPTY;
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return [];
+  if (!ctx) return { ...EMPTY, width, height };
   ctx.drawImage(img, 0, 0);
 
   let data: Uint8ClampedArray;
   try {
     data = ctx.getImageData(0, 0, width, height).data;
   } catch {
-    return []; // tainted canvas -- degrade to "no clusters" rather than throw
+    // tainted canvas -- degrade to "no clusters" rather than throw
+    return { ...EMPTY, width, height };
   }
 
   const isDiffPixel = (x: number, y: number): boolean => {
@@ -60,7 +81,8 @@ export async function findDiffClusters(
     return (
       data[idx] === HIGHLIGHT_R &&
       data[idx + 1] === HIGHLIGHT_G &&
-      data[idx + 2] === HIGHLIGHT_B
+      (data[idx + 2] === HIGHLIGHT_B_CURRENT ||
+        data[idx + 2] === HIGHLIGHT_B_LEGACY)
     );
   };
 
@@ -140,7 +162,12 @@ export async function findDiffClusters(
   }
 
   clusters.sort((a, b) => b.pixelCount - a.pixelCount);
-  return clusters.slice(0, maxClusters);
+  return {
+    clusters: clusters.slice(0, maxClusters),
+    total: clusters.length,
+    width,
+    height,
+  };
 }
 
 export function clusterContains(

@@ -7,11 +7,14 @@ interface Props {
   value: string;
 }
 
-/** Phase 6, feature 3: flips each character card when `value` changes,
- * swapping the character mid-rotation so the animation reads as the old
- * value flipping away to reveal the new one underneath -- a classic
- * split-flap display, applied to the diff pixel count / diff percentage
- * numbers in DiffViewer. */
+/** Flips each character when `value` changes, swapping the character at the
+ * midpoint of the squash so it reads as the old value flipping away to reveal
+ * the new one -- a split-flap display.
+ *
+ * Use it only where the point is "this count just changed" (the dashboard's
+ * pass/fail/untested tallies). It must not wrap a figure people compare, like
+ * a diff rate: that number should sit still and be readable (decision table:
+ * 数字の演出). */
 export function SplitFlapNumber({ value }: Props) {
   const [displayValue, setDisplayValue] = useState(value);
   const [flipping, setFlipping] = useState(false);
@@ -37,10 +40,14 @@ export function SplitFlapNumber({ value }: Props) {
   }, [value]);
 
   return (
-    <span className="flap-number" aria-label={value}>
+    <span className="flap-number num" aria-label={value}>
       {displayValue.split("").map((char, i) => (
         <span className="flap-digit" key={i} aria-hidden="true">
-          <span className={`card ${flipping ? "flipping" : ""}`}>{char}</span>
+          {/* Not named "card": that class is the app-wide panel style
+              (padding, background, radius) and would balloon every digit. */}
+          <span className={`flap-card ${flipping ? "flipping" : ""}`}>
+            {char}
+          </span>
         </span>
       ))}
     </span>

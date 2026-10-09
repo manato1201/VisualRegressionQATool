@@ -401,3 +401,138 @@ def test_toasts_endpoint_finds_toast_sink_nested_inside_composite(
         toasts = client.get("/api/alerts/toasts").json()
         assert len(toasts["toasts"]) == 1
         assert toasts["toasts"][0]["instruction_id"] == instruction_id
+
+
+def test_concurrent_requests_do_not_corrupt_each_others_db_access(client: TestClient):
+    """The dashboard board fires one thumbnail request per screen at once.
+    With a single sqlite3 connection shared across the request thread pool
+    those intermittently died with 'sqlite3.InterfaceError: bad parameter or
+    other API misuse' (HTTP 500); each request now gets its own connection."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    instruction_id = client.post(
+        "/api/instructions", json={"scene_or_level_id": "ConcurrencyScene"}
+    ).json()["instruction_id"]
+    captured_id = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v1"},
+        files={"file": ("v1.png", _png_bytes((10, 20, 30)), "image/png")},
+    ).json()["captured_image_id"]
+
+    urls = [
+        f"/api/captures/{captured_id}/image",
+        "/api/runs/dashboard",
+        "/api/instructions",
+    ]
+
+    def fetch(i: int) -> int:
+        return client.get(urls[i % len(urls)]).status_code
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        statuses = list(pool.map(fetch, range(240)))
+
+    assert statuses.count(200) == len(statuses), sorted(set(statuses))
+
+
+def test_image_endpoints_vary_on_origin_so_cors_and_plain_loads_do_not_share_a_cache_entry(
+    client: TestClient,
+):
+    instruction_id = client.post(
+        "/api/instructions", json={"scene_or_level_id": "VaryScene"}
+    ).json()["instruction_id"]
+    baseline = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v1"},
+        files={"file": ("v1.png", _png_bytes((10, 20, 30)), "image/png")},
+    ).json()
+    client.post(
+        "/api/references/promote",
+        json={"captured_image_id": baseline["captured_image_id"], "approved_by": "qa"},
+    )
+    diff = client.post(
+        "/api/diffs/run", json={"captured_image_id": baseline["captured_image_id"]}
+    ).json()
+
+    for url in (
+        f"/api/captures/{baseline['captured_image_id']}/image",
+        f"/api/diffs/{diff['diff_image']['diff_image_id']}/image",
+    ):
+        # A plain (no-Origin) request is the one a browser may cache, so the
+        # Vary header must be present on it, not only on CORS responses.
+        resp = client.get(url)
+        assert resp.status_code == 200
+        assert "origin" in resp.headers.get("vary", "").lower(), url
+
+
+def test_instruction_defaults_to_unpinned_time_with_reduced_motion(client: TestClient):
+    instr = client.post(
+        "/api/instructions", json={"scene_or_level_id": "DefaultsScene"}
+    ).json()
+    assert instr["fixed_time_seconds"] is None
+    assert instr["reduce_motion"] is True
+
+
+def test_run_rows_carry_capture_conditions_and_judgement_thresholds(
+    client: TestClient,
+):
+    """Plan U3/U4: a result must be readable on its own -- resolution, seed,
+    pinned time and the tolerance it was judged against travel with the row."""
+    instr = client.post(
+        "/api/instructions",
+        json={
+            "scene_or_level_id": "ConditionsScene",
+            "seed": 42,
+            "fixed_time_seconds": 1.5,
+            "reduce_motion": False,
+        },
+    ).json()
+    assert instr["fixed_time_seconds"] == 1.5
+    assert instr["reduce_motion"] is False
+    instruction_id = instr["instruction_id"]
+
+    baseline = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v1"},
+        files={
+            "file": ("v1.png", _png_bytes((10, 20, 30), size=(40, 30)), "image/png")
+        },
+    ).json()
+    client.post(
+        "/api/references/promote",
+        json={
+            "captured_image_id": baseline["captured_image_id"],
+            "approved_by": "qa-bot",
+        },
+    )
+    candidate = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v2"},
+        files={
+            "file": ("v2.png", _png_bytes((10, 20, 31), size=(40, 30)), "image/png")
+        },
+    ).json()
+    diff = client.post(
+        "/api/diffs/run",
+        json={
+            "captured_image_id": candidate["captured_image_id"],
+            "max_diff_pixels": 2000,
+            "per_pixel_tolerance": 0,
+        },
+    ).json()
+    assert diff["diff_image"]["max_diff_pixels"] == 2000
+
+    (run,) = client.get("/api/runs", params={"instruction_id": instruction_id}).json()
+    assert run["max_diff_pixels"] == 2000
+    assert run["per_pixel_tolerance"] == 0
+    assert (run["resolution_width"], run["resolution_height"]) == (40, 30)
+    assert run["seed"] == 42
+    assert run["fixed_time_seconds"] == 1.5
+    assert run["reduce_motion"] is False
+
+
+def test_negative_fixed_time_is_rejected(client: TestClient):
+    resp = client.post(
+        "/api/instructions",
+        json={"scene_or_level_id": "BadTimeScene", "fixed_time_seconds": -1},
+    )
+    assert resp.status_code == 422

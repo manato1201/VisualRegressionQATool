@@ -91,6 +91,38 @@ def test_dashboard_orders_failing_scenes_before_passing_ones(client: TestClient)
     assert failing_row["has_active_reference"] is True
 
 
+def test_dashboard_exposes_latest_images_and_threshold_for_the_board(
+    client: TestClient,
+):
+    instruction_id = _new_scene_with_reference(client, "BoardScene", (10, 10, 10))
+    cap = client.post(
+        "/api/captures",
+        data={"instruction_id": instruction_id, "build_version": "v1"},
+        files={"file": ("v1.png", _png_bytes((250, 0, 0)), "image/png")},
+    ).json()
+    diff = client.post(
+        "/api/diffs/run",
+        json={"captured_image_id": cap["captured_image_id"], "max_diff_pixels": 5},
+    ).json()
+
+    rows = client.get("/api/runs/dashboard").json()
+    row = next(r for r in rows if r["instruction_id"] == instruction_id)
+    assert row["latest_captured_image_id"] == cap["captured_image_id"]
+    assert row["latest_diff_image_id"] == diff["diff_image"]["diff_image_id"]
+    assert row["latest_max_diff_pixels"] == 5
+
+
+def test_dashboard_leaves_image_ids_empty_for_an_untested_scene(client: TestClient):
+    instr = client.post(
+        "/api/instructions", json={"scene_or_level_id": "NeverRunScene"}
+    ).json()
+    rows = client.get("/api/runs/dashboard").json()
+    row = next(r for r in rows if r["instruction_id"] == instr["instruction_id"])
+    assert row["latest_captured_image_id"] is None
+    assert row["latest_diff_image_id"] is None
+    assert row["latest_max_diff_pixels"] is None
+
+
 def test_dashboard_reports_open_alert_count(client: TestClient):
     instruction_id = _new_scene_with_reference(client, "AlertScene", (10, 10, 10))
     cap = client.post(

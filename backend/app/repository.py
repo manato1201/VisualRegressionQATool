@@ -37,8 +37,9 @@ def create_capture_instruction(
     created_at = _now()
     conn.execute(
         """INSERT INTO capture_instruction
-           (instruction_id, scene_or_level_id, camera_pose_json, frame_rate, seed, jitter, warmup_frames, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           (instruction_id, scene_or_level_id, camera_pose_json, frame_rate, seed, jitter, warmup_frames, created_at,
+            fixed_time_seconds, reduce_motion)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             instruction_id,
             body.scene_or_level_id,
@@ -48,6 +49,8 @@ def create_capture_instruction(
             body.jitter,
             body.warmup_frames,
             created_at,
+            body.fixed_time_seconds,
+            1 if body.reduce_motion else 0,
         ),
     )
     conn.commit()
@@ -87,6 +90,8 @@ def _row_to_instruction(row: sqlite3.Row) -> models.CaptureInstructionOut:
         jitter=row["jitter"],
         warmup_frames=row["warmup_frames"],
         created_at=row["created_at"],
+        fixed_time_seconds=row["fixed_time_seconds"],
+        reduce_motion=bool(row["reduce_motion"]),
     )
 
 
@@ -286,13 +291,16 @@ def create_diff_image(
     diff_pixel_count: int,
     diff_percentage: float,
     resolution_note: str | None = None,
+    max_diff_pixels: int | None = None,
+    per_pixel_tolerance: int | None = None,
 ) -> models.DiffImageOut:
     diff_image_id = new_id()
     created_at = _now()
     conn.execute(
         """INSERT INTO diff_image
-           (diff_image_id, captured_image_id, reference_image_id, diff_image_path, diff_pixel_count, diff_percentage, created_at, resolution_note)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           (diff_image_id, captured_image_id, reference_image_id, diff_image_path, diff_pixel_count, diff_percentage, created_at, resolution_note,
+            max_diff_pixels, per_pixel_tolerance)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             diff_image_id,
             captured_image_id,
@@ -302,6 +310,8 @@ def create_diff_image(
             diff_percentage,
             created_at,
             resolution_note,
+            max_diff_pixels,
+            per_pixel_tolerance,
         ),
     )
     conn.commit()
@@ -327,6 +337,8 @@ def _row_to_diff_image(row: sqlite3.Row) -> models.DiffImageOut:
         diff_percentage=row["diff_percentage"],
         created_at=row["created_at"],
         resolution_note=row["resolution_note"],
+        max_diff_pixels=row["max_diff_pixels"],
+        per_pixel_tolerance=row["per_pixel_tolerance"],
     )
 
 

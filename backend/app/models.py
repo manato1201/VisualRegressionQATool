@@ -22,6 +22,11 @@ class CaptureInstructionCreate(BaseModel):
     seed: int = 0
     jitter: float = 0.0
     warmup_frames: int = 0
+    # Animation-determinism instructions for capture agents (plan Q1): pin the
+    # animation clock to this many seconds (None = not pinned), and ask the
+    # target UI to honour prefers-reduced-motion while capturing.
+    fixed_time_seconds: Optional[float] = Field(default=None, ge=0)
+    reduce_motion: bool = True
 
 
 class CaptureInstructionOut(BaseModel):
@@ -33,6 +38,8 @@ class CaptureInstructionOut(BaseModel):
     jitter: float
     warmup_frames: int
     created_at: str
+    fixed_time_seconds: Optional[float] = None
+    reduce_motion: bool = True
 
 
 class CapturedImageOut(BaseModel):
@@ -80,6 +87,8 @@ class DiffImageOut(BaseModel):
     diff_percentage: float
     created_at: str
     resolution_note: Optional[str] = None
+    max_diff_pixels: Optional[int] = None
+    per_pixel_tolerance: Optional[int] = None
 
 
 class EvaluationResultOut(BaseModel):
@@ -136,6 +145,15 @@ class RunRow(BaseModel):
     scene_or_level_id: str
     reference_image_id: str
     resolution_note: Optional[str] = None
+    # Judgement thresholds and capture conditions, so a result can be read
+    # without cross-referencing the instruction list (plan U3/U4).
+    max_diff_pixels: Optional[int] = None
+    per_pixel_tolerance: Optional[int] = None
+    resolution_width: int
+    resolution_height: int
+    seed: int
+    fixed_time_seconds: Optional[float] = None
+    reduce_motion: bool = True
 
 
 class DashboardRow(BaseModel):
@@ -147,6 +165,9 @@ class DashboardRow(BaseModel):
     latest_evaluated_at: Optional[str] = None
     latest_diff_pixel_count: Optional[int] = None
     latest_diff_percentage: Optional[float] = None
+    latest_captured_image_id: Optional[str] = None
+    latest_diff_image_id: Optional[str] = None
+    latest_max_diff_pixels: Optional[int] = None
     total_runs: int
     has_active_reference: bool
     open_alert_count: int

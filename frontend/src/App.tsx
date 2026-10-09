@@ -10,7 +10,9 @@ import { DiffViewer } from "./components/DiffViewer";
 import { GettingStarted } from "./components/GettingStarted";
 import { InstructionPanel } from "./components/InstructionPanel";
 import { RunHistory } from "./components/RunHistory";
+import { SegmentedControl } from "./components/SegmentedControl";
 import { ToastStack } from "./components/ToastStack";
+import { applyTheme, getInitialTheme, type ThemeMode } from "./theme";
 import type {
   CaptureInstruction,
   CapturedImage,
@@ -20,6 +22,11 @@ import type {
 } from "./types";
 
 type Tab = "guide" | "dashboard" | "tool";
+
+const THEME_OPTIONS = [
+  { key: "light", label: "ライト" },
+  { key: "dark", label: "ダーク" },
+] as const;
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("guide");
@@ -45,6 +52,12 @@ export default function App() {
   );
   const [batchBusy, setBatchBusy] = useState(false);
   const [openAlertCount, setOpenAlertCount] = useState(0);
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+
+  function handleThemeChange(next: ThemeMode) {
+    setTheme(next);
+    applyTheme(next);
+  }
 
   // Guards against out-of-order responses: if the user switches instructions
   // again before an in-flight refresh resolves, that stale response must not
@@ -275,6 +288,20 @@ export default function App() {
           <p className="eyebrow">Visual Regression QA Tool</p>
           <h1 style={{ fontSize: 32 }}>差分ビューア</h1>
         </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--spacing-lg)",
+            flexWrap: "wrap",
+          }}
+        >
+          <SegmentedControl
+            label="テーマ"
+            options={THEME_OPTIONS}
+            value={theme}
+            onChange={handleThemeChange}
+          />
         <nav style={{ display: "flex", gap: "var(--spacing-xs)" }}>
           <button
             className={`btn btn-sm ${tab === "guide" ? "btn-secondary" : "btn-tertiary"}`}
@@ -320,6 +347,7 @@ export default function App() {
             ツール
           </button>
         </nav>
+        </div>
       </header>
 
       {banner && (

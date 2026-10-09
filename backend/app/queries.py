@@ -32,10 +32,17 @@ SELECT er.evaluation_result_id AS evaluation_result_id,
        di.diff_percentage AS diff_percentage,
        di.reference_image_id AS reference_image_id,
        di.resolution_note AS resolution_note,
+       di.max_diff_pixels AS max_diff_pixels,
+       di.per_pixel_tolerance AS per_pixel_tolerance,
        cap.captured_image_id AS captured_image_id,
        cap.build_version AS build_version,
+       cap.resolution_width AS resolution_width,
+       cap.resolution_height AS resolution_height,
        ci.instruction_id AS instruction_id,
-       ci.scene_or_level_id AS scene_or_level_id
+       ci.scene_or_level_id AS scene_or_level_id,
+       ci.seed AS seed,
+       ci.fixed_time_seconds AS fixed_time_seconds,
+       ci.reduce_motion AS reduce_motion
 FROM evaluation_result er
 JOIN diff_image di ON er.diff_image_id = di.diff_image_id
 JOIN captured_image cap ON di.captured_image_id = cap.captured_image_id
@@ -81,6 +88,13 @@ def list_runs(
             scene_or_level_id=r["scene_or_level_id"],
             reference_image_id=r["reference_image_id"],
             resolution_note=r["resolution_note"],
+            max_diff_pixels=r["max_diff_pixels"],
+            per_pixel_tolerance=r["per_pixel_tolerance"],
+            resolution_width=r["resolution_width"],
+            resolution_height=r["resolution_height"],
+            seed=r["seed"],
+            fixed_time_seconds=r["fixed_time_seconds"],
+            reduce_motion=bool(r["reduce_motion"]),
         )
         for r in rows
     ]
@@ -95,6 +109,9 @@ WITH ranked_runs AS (
         cap.build_version AS build_version,
         di.diff_pixel_count AS diff_pixel_count,
         di.diff_percentage AS diff_percentage,
+        di.diff_image_id AS diff_image_id,
+        di.max_diff_pixels AS max_diff_pixels,
+        cap.captured_image_id AS captured_image_id,
         ROW_NUMBER() OVER (PARTITION BY ci.instruction_id ORDER BY cap.captured_at DESC) AS rn
     FROM evaluation_result er
     JOIN diff_image di ON er.diff_image_id = di.diff_image_id
@@ -110,6 +127,9 @@ SELECT
     rr.build_version AS latest_build_version,
     rr.diff_pixel_count AS latest_diff_pixel_count,
     rr.diff_percentage AS latest_diff_percentage,
+    rr.captured_image_id AS latest_captured_image_id,
+    rr.diff_image_id AS latest_diff_image_id,
+    rr.max_diff_pixels AS latest_max_diff_pixels,
     (SELECT COUNT(*) FROM evaluation_result er2
        JOIN diff_image di2 ON er2.diff_image_id = di2.diff_image_id
        JOIN captured_image cap2 ON di2.captured_image_id = cap2.captured_image_id
@@ -140,6 +160,9 @@ def dashboard_summary(conn: sqlite3.Connection) -> list[models.DashboardRow]:
             latest_evaluated_at=r["latest_evaluated_at"],
             latest_diff_pixel_count=r["latest_diff_pixel_count"],
             latest_diff_percentage=r["latest_diff_percentage"],
+            latest_captured_image_id=r["latest_captured_image_id"],
+            latest_diff_image_id=r["latest_diff_image_id"],
+            latest_max_diff_pixels=r["latest_max_diff_pixels"],
             total_runs=r["total_runs"],
             has_active_reference=bool(r["has_active_reference"]),
             open_alert_count=r["open_alert_count"],

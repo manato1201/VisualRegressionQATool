@@ -35,7 +35,9 @@
 - **単発 / 一括(バッチ)差分実行** — 複数の撮影画像をまとめて評価。1件の失敗が他に影響しない
 - **first-bad-commitクエリ** — 同一instructionの履歴から最初にfailしたbuild_versionを特定
 - **IAlertSink抽象化** — `NoopAlertSink` / `WebhookAlertSink` / `GitHubIssueAlertSink`(ラベル検索による重複防止・自動クローズ込み)をコード変更なしで切替可能
-- **差分ビューアWeb UI** — サイドバイサイド/オーバーレイ表示、PASS/FAILの意味表示、撮影画像削除、「はじめに」ガイド
+- **差分ビューアWeb UI** — 差分/並べて/スライダー/点滅の4表示、背景(白/黒/市松)・ズーム切替、結果と撮影条件(解像度・時刻固定・シード)の固定表示、履歴タイムライン、撮影画像削除、「はじめに」ガイド。判定は色だけに頼らず「✓ 合格 / ✕ 不合格 / — 未検査」、差分ピクセルは固定のマゼンタ。ライト/ダークテーマ切替
+- **画面一覧ボード** — ダッシュボードに全撮影指示をカードで並べ、差分率で色分け。未検査の画面は灰色の破線カードで検査漏れを可視化
+- **アニメーションの決定性** — 撮影指示に`fixed_time_seconds`(時計の固定)・`reduce_motion`を持たせ、`capture_agents.determinism.check_determinism`で「N回撮影して全て同一」を検収([設計書 Phase 7](VisualRegressionQATool_DESIGN.md))
 - **CaptureAgent共通インターフェース** — Unity/Houdini等から`view`(ビューポート)/`comp`(コンポジット出力)を撮影してバックエンドへ送るクライアント側契約。サーバーAPIは無変更([capture_agents/](capture_agents/) = Python/Houdini版、[unity_capture_agent/](unity_capture_agent/) = C#/Unity版)
 - **CI連携サンプル** — [`.github/workflows/visual-regression-example.yml`](.github/workflows/visual-regression-example.yml) + [`capture_agents/examples/ci_diff_check.py`](capture_agents/examples/ci_diff_check.py)。ビルド成果物のPNGを渡すとfail時に非ゼロ終了しジョブを落とす
 
@@ -151,7 +153,7 @@ VisualRegressionQATool/
 │   │   ├── alert_sink.py    # IAlertSinkと実装群
 │   │   ├── routers/         # instructions/captures/references/diffs/runs/alerts
 │   │   └── main.py          # FastAPIアプリ組み立て
-│   └── tests/                # pytest 67件
+│   └── tests/                # pytest 76件
 ├── frontend/
 │   └── src/
 │       ├── theme.css              # Zapier風デザイントークン

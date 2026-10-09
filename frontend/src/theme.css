@@ -1,5 +1,8 @@
-/* Zapier-inspired design tokens (VisualRegressionQATool_UI_DESIGN.md) */
+/* Design tokens. Light is the base; [data-theme="dark"] overrides colours
+ * only (see "Dark theme" below). */
 :root {
+  color-scheme: light;
+
   --color-primary: #ff4f00;
   --color-on-primary: #fffefb;
   --color-ink: #201515;
@@ -18,9 +21,19 @@
   --color-flaky: #b7791f;
   --color-flaky-bg: #fbf1e0;
 
+  /* The one colour for "these pixels differ". Deliberately not the red used
+   * for a failing verdict, so a diff pixel is never read as a verdict; it
+   * must match HIGHLIGHT_COLOR in backend/app/diff_engine.py. Identical in
+   * both themes: pure magenta stays distinct from either background. */
+  --color-diff: #ff00ff;
+  --color-untested: #6f6b61;
+  --color-untested-bg: #ece8e1;
+
   --font-display:
     "Degular Display", Inter, system-ui, -apple-system, sans-serif;
   --font-body: Inter, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
 
   --rounded-sm: 6px;
   --rounded-md: 12px;
@@ -35,6 +48,32 @@
   --spacing-2xl: 32px;
   --spacing-3xl: 48px;
   --spacing-4xl: 64px;
+}
+
+/* Dark theme: only colours change -- spacing, type and layout stay put so the
+ * two themes can never drift apart structurally. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #ff6a1f;
+  --color-on-primary: #1a1513;
+  --color-ink: #f4efe8;
+  --color-ink-soft: #e6e0d7;
+  --color-ink-mid: #d6d0c6;
+  --color-body: #b9b3a6;
+  --color-body-mid: #948e82;
+  --color-mute: #4d4841;
+  --color-canvas: #161312;
+  --color-canvas-soft: #201c1a;
+
+  --color-pass: #52c88b;
+  --color-pass-bg: #163326;
+  --color-fail: #ff7d6e;
+  --color-fail-bg: #3d1f1b;
+  --color-flaky: #e3a93d;
+  --color-flaky-bg: #3b2e13;
+  --color-untested: #a8a296;
+  --color-untested-bg: #2a2623;
 }
 
 * {
@@ -169,8 +208,16 @@ select {
 }
 
 .badge-na {
-  color: var(--color-body-mid);
-  background: var(--color-canvas-soft);
+  color: var(--color-untested);
+  background: var(--color-untested-bg);
+}
+
+/* Numbers that are compared against each other: half-width, tabular, monospace
+ * so digits line up down a column (decision table: 差分率). */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 .eyebrow {
@@ -186,8 +233,10 @@ select {
   color: var(--color-body-mid);
 }
 
+/* Hint text. Previously drawn in the border colour (~1.8:1 against the page),
+ * which is below readable; it now uses the secondary text colour. */
 .text-mute {
-  color: var(--color-mute);
+  color: var(--color-body-mid);
 }
 
 /* Phase 6: diff viewer UI enhancements ------------------------------------ */
@@ -196,7 +245,7 @@ select {
 .diff-focus-ring {
   position: absolute;
   pointer-events: none;
-  outline: 3px solid var(--color-fail);
+  outline: 3px solid var(--color-diff);
   outline-offset: 2px;
   border-radius: var(--rounded-sm);
   animation: focus-ring-pulse 1.2s ease-in-out infinite;
@@ -205,10 +254,10 @@ select {
 @keyframes focus-ring-pulse {
   0%,
   100% {
-    outline-color: rgba(192, 57, 43, 0.9);
+    outline-color: rgba(255, 0, 255, 0.95);
   }
   50% {
-    outline-color: rgba(192, 57, 43, 0.35);
+    outline-color: rgba(255, 0, 255, 0.4);
   }
 }
 
@@ -237,13 +286,22 @@ select {
     color 0.15s ease;
 }
 
-.segment-rail button[aria-selected="true"] {
+.segment-rail button[aria-selected="true"],
+.segment-rail button[aria-checked="true"] {
   background: var(--color-ink);
   color: var(--color-on-primary);
 }
 
-.segment-rail button:not([aria-selected="true"]):hover {
+.segment-rail
+  button:not([aria-selected="true"]):not([aria-checked="true"]):hover {
   background: var(--color-canvas-soft);
+}
+
+.segment-rail button:focus-visible,
+.btn:focus-visible,
+.board-card:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 /* 3. Split-flap number: per-character flip when a value changes. */
@@ -254,20 +312,32 @@ select {
 
 .flap-digit {
   display: inline-block;
-  perspective: 240px;
   width: 0.62em;
   text-align: center;
 }
 
-.flap-digit .card {
+/* A flat vertical squash-and-restore rather than a 3D rotateX: the swap to
+ * the new character happens at the midpoint (see SplitFlapNumber), where the
+ * digit is edge-on. The old rules targeted `.card`, which collided with the
+ * app-wide `.card` panel class (24px padding, background, radius) and
+ * ballooned every digit, and a `.flap-digit.flipping .card` selector that
+ * never matched the real markup meant the flip never played at all. */
+.flap-digit .flap-card {
   display: inline-block;
-  transform-style: preserve-3d;
-  transition: transform 0.35s ease-in;
-  will-change: transform;
 }
 
-.flap-digit.flipping .card {
-  transform: rotateX(-180deg);
+.flap-digit .flap-card.flipping {
+  animation: flap-flip 0.35s ease-in-out;
+}
+
+@keyframes flap-flip {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.05);
+  }
 }
 
 /* 4. Stack toast: alerts pushed from IAlertSink implementations. */
@@ -312,4 +382,156 @@ select {
 .toast-success {
   background: var(--color-pass);
   color: var(--color-on-primary);
+}
+
+/* 2026-10 improvement pass ------------------------------------------------- */
+
+/* Diff viewer stage: the backdrop images sit on. Matters whenever an image
+ * doesn't fill the stage (100% zoom, a smaller capture) or is translucent. */
+.stage {
+  border: 1px solid var(--color-mute);
+  border-radius: var(--rounded-md);
+  padding: var(--spacing-md);
+  overflow: auto;
+}
+
+/* Shown larger than real size: nearest-neighbour, so a 1px difference stays
+ * a crisp 1px (scaled) square instead of smearing into its neighbours. */
+.stage-pixelated img {
+  image-rendering: pixelated;
+}
+
+/* Any text that ends up on the stage (frame labels, loading notes) is drawn on
+ * a light or dark backdrop that doesn't follow the page theme, so it takes
+ * its colour from the backdrop instead of the theme tokens. */
+.stage-white,
+.stage-checker {
+  color: #201515;
+}
+
+.stage-black {
+  color: #f4efe8;
+}
+
+.stage .text-body-mid,
+.stage .stage-note {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.stage .stage-note {
+  margin: 0;
+}
+
+.stage-white {
+  background: #ffffff;
+}
+
+.stage-black {
+  background: #000000;
+}
+
+.stage-checker {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(
+      45deg,
+      #c9c9c9 25%,
+      transparent 25%,
+      transparent 75%,
+      #c9c9c9 75%
+    ),
+    linear-gradient(
+      45deg,
+      #c9c9c9 25%,
+      transparent 25%,
+      transparent 75%,
+      #c9c9c9 75%
+    );
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    8px 8px;
+}
+
+/* Diff colour legend swatch. */
+.diff-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--color-diff);
+  vertical-align: -1px;
+}
+
+/* Screen board (dashboard). */
+.board-grid {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.board-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  text-align: left;
+  padding: var(--spacing-md);
+  border-radius: var(--rounded-md);
+  border: 2px solid var(--color-mute);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.board-card:hover {
+  background: var(--color-canvas-soft);
+}
+
+.board-card-pass {
+  border-color: var(--color-pass);
+}
+
+.board-card-fail {
+  border-color: var(--color-fail);
+}
+
+.board-card-flaky {
+  border-color: var(--color-flaky);
+}
+
+/* Not inspected: grey and dashed, so a gap in coverage reads as a gap. */
+.board-card-untested {
+  border-style: dashed;
+  border-color: var(--color-untested);
+  background: var(--color-untested-bg);
+}
+
+.board-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--rounded-sm);
+  border: 1px solid var(--color-mute);
+  background: var(--color-canvas-soft);
+  display: block;
+}
+
+.board-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-untested);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
