@@ -4,6 +4,7 @@ import type {
   DashboardRow,
   DiffBatchRunResponse,
   DiffImage,
+  DiffPreviewResult,
   DiffRunResult,
   FirstBadCommit,
   ReferenceImage,
@@ -146,6 +147,32 @@ export const api = {
         max_diff_pixels: opts?.maxDiffPixels ?? 0,
         min_diff_region_pixels: opts?.minDiffRegionPixels ?? 1,
         allow_center_crop: opts?.allowCenterCrop ?? false,
+      }),
+    }),
+
+  /** Threshold lab: judge with these settings without recording anything. */
+  previewDiff: (
+    capturedImageId: string,
+    opts: {
+      perPixelTolerance: number;
+      maxDiffPixels: number;
+      minDiffRegionPixels: number;
+      allowCenterCrop: boolean;
+      referenceImageId?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
+    request<DiffPreviewResult>("/api/diffs/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        captured_image_id: capturedImageId,
+        reference_image_id: opts.referenceImageId,
+        per_pixel_tolerance: opts.perPixelTolerance,
+        max_diff_pixels: opts.maxDiffPixels,
+        min_diff_region_pixels: opts.minDiffRegionPixels,
+        allow_center_crop: opts.allowCenterCrop,
       }),
     }),
 

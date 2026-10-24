@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, describeApiError, imageUrl } from "../api";
 import { formatCount, formatPercent, pickColumns } from "../format";
 import type { DashboardRow, Verdict } from "../types";
+import { EmptyState } from "./EmptyState";
 import { SplitFlapNumber } from "./SplitFlapNumber";
 import { VerdictBadge } from "./VerdictBadge";
 
@@ -71,7 +72,13 @@ export function Dashboard({ onOpenInstruction }: Props) {
         </div>
       )}
 
-      {rows && rows.length === 0 && <p className="text-body-mid">まだ撮影指示がありません</p>}
+      {rows && rows.length === 0 && (
+        <EmptyState
+          title="まだ撮影指示がありません"
+          description="撮影指示を作ると、ここに画面ごとのカードが並びます。検査していない画面は灰色で表示されます。"
+          steps={["「ツール」タブを開く", "シーンIDを入力して「撮影指示を作成」する"]}
+        />
+      )}
 
       {rows && rows.length > 0 && <Board rows={rows} onOpenInstruction={onOpenInstruction} />}
     </section>

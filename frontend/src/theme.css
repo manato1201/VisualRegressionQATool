@@ -526,6 +526,62 @@ select {
   font-weight: 600;
 }
 
+/* Modal dialog (native <dialog>). Appears instantly -- no animation. */
+.dialog {
+  width: min(480px, calc(100vw - 32px));
+  padding: var(--spacing-xl);
+  border: 1px solid var(--color-ink);
+  border-radius: var(--rounded-md);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Filter chips (run history). */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--rounded-pill);
+  border: 1px solid var(--color-ink);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--color-ink);
+  color: var(--color-on-primary);
+}
+
+.chip:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Keyboard key caps in the shortcut hint. */
+.kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 var(--spacing-xs);
+  border: 1px solid var(--color-mute);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

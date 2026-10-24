@@ -120,6 +120,8 @@ class IAlertSink(Protocol):
 | GET | `/api/references/{id}` | Reference取得 |
 | POST | `/api/diffs/run` | 単発差分実行+評価+アラート |
 | POST | `/api/diffs/run-batch` | 一括差分実行(§3.7) |
+| POST | `/api/diffs/preview` | しきい値ラボ。指定した設定で判定した場合の結果を返す。**何も保存しない**(設計書7.7) |
+| POST | `/api/analysis/continuity` | アニメーションのフレーム連続性の検査。変化量が跳ねるペアだけを報告する(設計書7.9)。読み取り専用 |
 | GET | `/api/diffs/{id}` | DiffImageレコード取得 |
 | GET | `/api/diffs/{id}/image` | 差分ハイライト画像取得 |
 | GET | `/api/runs?instruction_id=` | 実行履歴一覧(JOIN済みビュー) |
@@ -134,7 +136,7 @@ class IAlertSink(Protocol):
 
 - `App.tsx`: 全画面状態(選択中instruction・撮影画像一覧・実行履歴・diff設定・banner等)を集中管理する唯一のstateホルダー。子コンポーネントはpropsで受け取ったcallbackを呼ぶだけの設計。
 - `DiffSettings.tsx`: `per_pixel_tolerance` / `max_diff_pixels` / `min_diff_region_pixels`を調整するUI。既定値は設計書通り全て0(または1)で、変更しない限り従来の厳密比較のまま動く。
-- `DiffViewer.tsx`: 表示モード4種(差分=Referenceの上にDiff Highlightを可変不透明度で重ねる/並べて=Captured・Reference・Diffを横並び/スライダー=境界線で左右比較/点滅=0.625Hzで交互表示)、背景(白/黒/市松)、ズーム(フィット/100%)、結果パネル(`diffviewer/ResultPanel`)、下に履歴タイムライン(`DotChart`)。部品は`components/diffviewer/`に分割。`reference_image_id`から実際の画像URLを解決するため、`GET /api/references/{id}`を都度呼び出す。フォーカスリング・クリック固定の拡大表示は差分画像をクライアント側で領域検出して実現(`diffClusters.ts`、新規APIなし)。
+- `DiffViewer.tsx`: 表示モード6種(差分=Referenceの上にDiff Highlightを可変不透明度で重ねる/並べて=Captured・Reference・Diffを横並び/スライダー=境界線で左右比較/点滅=0.625Hzで交互表示/重ね=オニオンスキン/個別=基準→今回→差分を1枚ずつ)、コマ送り、キー割り当て(`shortcuts.ts`)、しきい値ラボ(`diffviewer/ThresholdLab`)、背景(白/黒/市松)、ズーム(フィット/100%)、結果パネル(`diffviewer/ResultPanel`)、下に履歴タイムライン(`DotChart`)。部品は`components/diffviewer/`に分割。`reference_image_id`から実際の画像URLを解決するため、`GET /api/references/{id}`を都度呼び出す。フォーカスリング・クリック固定の拡大表示は差分画像をクライアント側で領域検出して実現(`diffClusters.ts`、新規APIなし)。
 - `Dashboard.tsx`: 画面一覧ボード。1撮影指示=1カード、未検査は灰色の破線。列数は`format.ts`の`pickColumns`が幅と件数から決める。
 - `format.ts`: 表示規約(差分率2桁・`<0.01%`・許容値併記・撮影条件)を1か所に集約。`theme.ts`: ライト/ダークの保存と適用。
 - `CapturePanel.tsx`: アップロードフォーム・DiffSettings・**複数選択チェックボックス+一括実行ボタン**・各カードの昇格/差分実行/削除ボタンをまとめたメインパネル。

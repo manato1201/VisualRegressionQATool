@@ -136,6 +136,30 @@ class BackendClient:
         _raise_for_status_with_detail(resp)
         return resp.json()
 
+    def preview_diff(
+        self, captured_image_id: str, **diff_settings: Any
+    ) -> dict[str, Any]:
+        """What a diff run *would* say under these settings. Records nothing."""
+        resp = self._client.post(
+            "/api/diffs/preview",
+            json={"captured_image_id": captured_image_id, **diff_settings},
+        )
+        _raise_for_status_with_detail(resp)
+        return resp.json()
+
+    def check_continuity(
+        self, captured_image_ids: list[str], **settings: Any
+    ) -> dict[str, Any]:
+        """Frame-to-frame continuity of an animation (ids in playback order).
+        Returns the change count per adjacent pair and only the outlier pairs
+        -- candidates for a person to look at, not a pass/fail verdict."""
+        resp = self._client.post(
+            "/api/analysis/continuity",
+            json={"captured_image_ids": captured_image_ids, **settings},
+        )
+        _raise_for_status_with_detail(resp)
+        return resp.json()
+
     def run_diff_batch(
         self, captured_image_ids: list[str], **diff_settings: Any
     ) -> dict[str, Any]:

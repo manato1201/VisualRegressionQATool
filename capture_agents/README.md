@@ -61,6 +61,20 @@ assert report.identical, f"runs differing from run 0: {report.mismatched_runs}"
 - `reduce_motion` asks the target UI to honour `prefers-reduced-motion`. For browser-based captures, `FREEZE_ANIMATIONS_CSS` is a stylesheet that removes animations and transitions — inject it before the screenshot.
 - `check_determinism` hashes the encoded images: equal hashes prove identical pixels; a mismatch means the pixels *or* the PNG encoding differ, so upload both and diff them on the backend to tell which.
 
+### Continuity of an animation
+
+Capture every frame of an animation at pinned times (`fixed_time_seconds`), upload them in playback order, then ask the backend whether any frame's change from its neighbour jumps out of the sequence:
+
+```python
+report = backend.check_continuity(frame_ids)          # ids in playback order, >= 3 frames
+for o in report["outliers"]:
+    print(o["from_build_version"], "->", o["to_build_version"], o["diff_pixel_count"], "px")
+```
+
+Only outliers are reported (with the per-pair counts in `pair_diffs`). A glitch frame shows up as two pairs -- the change *into* it and *out of* it. The threshold is `median + k x robust spread` with a floor of `min_jump_percent` of the frame; tune `k` / `min_jump_percent` on real data. This is a candidate list for a person to inspect, not a pass/fail verdict: a deliberate scene cut jumps too.
+
+`backend.preview_diff(captured_id, per_pixel_tolerance=...)` answers "what would this diff say under these settings?" and records nothing.
+
 ## Running inside Houdini
 
 Houdini bundles its own Python interpreter (`hython`), which is the only place `capture_agents.houdini_agent` can import `hou`. Install this package into that interpreter, e.g.:

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { imageUrl } from "../api";
 import type { CapturedImage, ReferenceImage } from "../types";
 import { DiffSettings, type DiffSettingsValue } from "./DiffSettings";
+import { EmptyState } from "./EmptyState";
 
 interface Props {
   capturedImages: CapturedImage[];
@@ -113,7 +114,15 @@ export function CapturePanel({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "var(--spacing-md)" }}>
-        {capturedImages.length === 0 && <p className="text-body-mid">まだ撮影画像がありません</p>}
+        {capturedImages.length === 0 && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <EmptyState
+              title="まだ撮影画像がありません"
+              description="画像をアップロードすると、ここにカードが並びます。"
+              steps={["build versionを入力する", "画像ファイル(PNG/JPEG)を選んで「アップロード」を押す"]}
+            />
+          </div>
+        )}
         {capturedImages.map((img) => {
           const isReference = activeReference?.captured_image_id === img.captured_image_id;
           const busy = busyCapturedImageId === img.captured_image_id || batchBusy;

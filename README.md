@@ -36,6 +36,8 @@
 - **first-bad-commitクエリ** — 同一instructionの履歴から最初にfailしたbuild_versionを特定
 - **IAlertSink抽象化** — `NoopAlertSink` / `WebhookAlertSink` / `GitHubIssueAlertSink`(ラベル検索による重複防止・自動クローズ込み)をコード変更なしで切替可能
 - **差分ビューアWeb UI** — 差分/並べて/スライダー/点滅の4表示、背景(白/黒/市松)・ズーム切替、結果と撮影条件(解像度・時刻固定・シード)の固定表示、履歴タイムライン、撮影画像削除、「はじめに」ガイド。判定は色だけに頼らず「✓ 合格 / ✕ 不合格 / — 未検査」、差分ピクセルは固定のマゼンタ。ライト/ダークテーマ切替
+- **しきい値ラボ / 比較ラボ** — 許容誤差を動かして「その設定なら判定がどう変わるか」をプレビュー(**何も保存しない**)。オニオンスキン、結果のコマ送り、キー操作(`C`表示 / `B`背景 / `←` `→`前後 / `/`検索)、基準画像を置き換える昇格の確認ダイアログ、実行履歴の絞り込み・検索・ページ送り
+- **フレーム連続性の検査** — `POST /api/analysis/continuity`。アニメーションの隣り合うフレームの変化量が急に跳ねる箇所だけを報告(判定には使わない)
 - **画面一覧ボード** — ダッシュボードに全撮影指示をカードで並べ、差分率で色分け。未検査の画面は灰色の破線カードで検査漏れを可視化
 - **アニメーションの決定性** — 撮影指示に`fixed_time_seconds`(時計の固定)・`reduce_motion`を持たせ、`capture_agents.determinism.check_determinism`で「N回撮影して全て同一」を検収([設計書 Phase 7](VisualRegressionQATool_DESIGN.md))
 - **CaptureAgent共通インターフェース** — Unity/Houdini等から`view`(ビューポート)/`comp`(コンポジット出力)を撮影してバックエンドへ送るクライアント側契約。サーバーAPIは無変更([capture_agents/](capture_agents/) = Python/Houdini版、[unity_capture_agent/](unity_capture_agent/) = C#/Unity版)
@@ -153,7 +155,7 @@ VisualRegressionQATool/
 │   │   ├── alert_sink.py    # IAlertSinkと実装群
 │   │   ├── routers/         # instructions/captures/references/diffs/runs/alerts
 │   │   └── main.py          # FastAPIアプリ組み立て
-│   └── tests/                # pytest 76件
+│   └── tests/                # pytest 94件
 ├── frontend/
 │   └── src/
 │       ├── theme.css              # Zapier風デザイントークン

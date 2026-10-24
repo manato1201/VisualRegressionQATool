@@ -28,18 +28,15 @@ class _DiffRunError(Exception):
         super().__init__(detail)
 
 
-def _execute_diff_run(
+def _load_pair(
     conn: sqlite3.Connection,
     blobs: BlobStore,
-    alert_sink: IAlertSink,
-    *,
     captured_image_id: str,
     reference_image_id: str | None,
-    per_pixel_tolerance: int,
-    max_diff_pixels: int,
-    min_diff_region_pixels: int,
-    allow_center_crop: bool = False,
-) -> models.DiffRunResult:
+):
+    """Resolve a captured image and the reference it is judged against, and
+    read both blobs. Shared by a real diff run and the threshold-lab preview so
+    the two can never disagree about *which* reference a result used."""
     captured = repository.get_captured_image(conn, captured_image_id)
     if not captured:
         raise _DiffRunError(404, "captured image not found")
@@ -63,8 +60,20 @@ def _execute_diff_run(
     except OSError as exc:
         raise _DiffRunError(500, f"blob missing or unreadable: {exc}") from exc
 
+    return captured, reference, captured_bytes, reference_bytes
+
+
+def _compare(
+    captured_bytes: bytes,
+    reference_bytes: bytes,
+    *,
+    per_pixel_tolerance: int,
+    max_diff_pixels: int,
+    min_diff_region_pixels: int,
+    allow_center_crop: bool,
+):
     try:
-        result = _engine.compare_bytes(
+        return _engine.compare_bytes(
             captured_bytes,
             reference_bytes,
             per_pixel_tolerance=per_pixel_tolerance,
@@ -79,6 +88,31 @@ def _execute_diff_run(
         # corrupt/truncated stored blob -- one bad item must not take down
         # the rest of a batch run.
         raise _DiffRunError(422, f"unreadable image data: {exc}") from exc
+
+
+def _execute_diff_run(
+    conn: sqlite3.Connection,
+    blobs: BlobStore,
+    alert_sink: IAlertSink,
+    *,
+    captured_image_id: str,
+    reference_image_id: str | None,
+    per_pixel_tolerance: int,
+    max_diff_pixels: int,
+    min_diff_region_pixels: int,
+    allow_center_crop: bool = False,
+) -> models.DiffRunResult:
+    captured, reference, captured_bytes, reference_bytes = _load_pair(
+        conn, blobs, captured_image_id, reference_image_id
+    )
+    result = _compare(
+        captured_bytes,
+        reference_bytes,
+        per_pixel_tolerance=per_pixel_tolerance,
+        max_diff_pixels=max_diff_pixels,
+        min_diff_region_pixels=min_diff_region_pixels,
+        allow_center_crop=allow_center_crop,
+    )
 
     buf = io.BytesIO()
     result.diff_image.save(buf, format="PNG")
@@ -144,6 +178,42 @@ def run_diff(
         )
     except _DiffRunError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@router.post("/preview", response_model=models.DiffPreviewResult)
+def preview_diff(
+    body: models.DiffRunRequest,
+    conn: sqlite3.Connection = Depends(get_conn),
+    blobs: BlobStore = Depends(get_blob_store),
+):
+    """Threshold lab: judge a captured image against its reference with the
+    given settings WITHOUT recording anything -- no diff image, no evaluation
+    result, no alert, no blob written. It exists so a person can see how a
+    different tolerance would have changed a verdict before deciding to re-run
+    for real; stored verdicts are never altered by it."""
+    try:
+        _captured, reference, captured_bytes, reference_bytes = _load_pair(
+            conn, blobs, body.captured_image_id, body.reference_image_id
+        )
+        result = _compare(
+            captured_bytes,
+            reference_bytes,
+            per_pixel_tolerance=body.per_pixel_tolerance,
+            max_diff_pixels=body.max_diff_pixels,
+            min_diff_region_pixels=body.min_diff_region_pixels,
+            allow_center_crop=body.allow_center_crop,
+        )
+    except _DiffRunError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    return models.DiffPreviewResult(
+        captured_image_id=body.captured_image_id,
+        reference_image_id=reference.reference_image_id,
+        diff_pixel_count=result.diff_pixel_count,
+        diff_percentage=result.diff_percentage,
+        verdict=result.verdict,
+        resolution_note=result.resolution_note,
+    )
 
 
 @router.post("/run-batch", response_model=models.DiffBatchRunResponse)

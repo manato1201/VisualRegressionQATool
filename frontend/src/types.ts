@@ -129,6 +129,17 @@ export interface DashboardRow {
   open_alert_count: number;
 }
 
+/** What a diff run would produce under some settings; nothing is recorded. */
+export interface DiffPreviewResult {
+  captured_image_id: string;
+  reference_image_id: string;
+  diff_pixel_count: number;
+  diff_percentage: number;
+  verdict: "pass" | "fail";
+  resolution_note: string | null;
+  persisted: false;
+}
+
 export type ToastSeverity = "error" | "success";
 
 export interface ToastItem {

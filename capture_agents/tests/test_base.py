@@ -117,6 +117,37 @@ def test_run_diff_and_run_diff_batch_post_expected_payloads():
     assert b'"min_diff_region_pixels":20' in seen[1][1]
 
 
+def test_preview_diff_and_check_continuity_post_expected_payloads():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((str(request.url.path), request.read()))
+        return httpx.Response(200, json={"ok": True})
+
+    backend = _client_with_handler(handler)
+    backend.preview_diff("cap-1", per_pixel_tolerance=3)
+    backend.check_continuity(["f0", "f1", "f2"], k=8.0, min_jump_percent=0.5)
+
+    assert seen[0][0] == "/api/diffs/preview"
+    assert b'"per_pixel_tolerance":3' in seen[0][1]
+    assert seen[1][0] == "/api/analysis/continuity"
+    assert b'"captured_image_ids":["f0","f1","f2"]' in seen[1][1]
+    assert b'"k":8.0' in seen[1][1]
+
+
+def test_check_continuity_error_surfaces_the_backend_detail_message():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            422, json={"detail": "frame 4 is 104x64 but frame 3 is 96x64"}
+        )
+
+    with pytest.raises(BackendApiError) as exc_info:
+        _client_with_handler(handler).check_continuity(["a", "b", "c"])
+
+    assert exc_info.value.status_code == 422
+    assert "frame 4" in exc_info.value.detail
+
+
 def test_run_diff_error_surfaces_the_backend_detail_message_not_a_bare_http_error():
     """Regression coverage: BackendClient used to call resp.raise_for_status()
     directly, which discards FastAPI's JSON `detail` body -- callers (CI

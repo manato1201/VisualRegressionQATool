@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -13,6 +14,7 @@ import {
   type DiffClusterResult,
 } from "../diffClusters";
 import { loadPixelSampler, type PixelSampler } from "../pixelSampler";
+import { cycle, shouldIgnoreShortcut } from "../shortcuts";
 import type { FirstBadCommit, RunRow } from "../types";
 import { DotChart } from "./DotChart";
 import { SegmentedControl } from "./SegmentedControl";
@@ -33,16 +35,38 @@ import {
   type StageBackground,
   type ZoomMode,
 } from "./diffviewer/shared";
+import { ThresholdLab } from "./diffviewer/ThresholdLab";
 import { ZoomPanel } from "./diffviewer/ZoomPanel";
 
-type Mode = "diff" | "side-by-side" | "slider" | "blink";
+type Mode = "diff" | "side-by-side" | "slider" | "blink" | "onion" | "single";
 
 const MODE_OPTIONS = [
   { key: "diff", label: "差分" },
   { key: "side-by-side", label: "並べて" },
   { key: "slider", label: "スライダー" },
   { key: "blink", label: "点滅" },
+  { key: "onion", label: "重ね" },
+  { key: "single", label: "個別" },
 ] as const;
+
+const MODE_KEYS = MODE_OPTIONS.map((o) => o.key);
+const BACKGROUND_KEYS = BACKGROUND_OPTIONS.map((o) => o.key);
+
+/** One image at a time, always in the order: baseline (nothing applied) ->
+ * this capture (the change applied) -> the diff that compares them. */
+type SingleView = "reference" | "captured" | "diff";
+
+const SINGLE_OPTIONS = [
+  { key: "reference", label: "基準" },
+  { key: "captured", label: "今回" },
+  { key: "diff", label: "差分" },
+] as const;
+
+const SINGLE_LABELS: Record<SingleView, string> = {
+  reference: "基準 (Reference)",
+  captured: "今回 (Captured)",
+  diff: "差分 (Diff Highlight)",
+};
 
 interface Props {
   run: RunRow;
@@ -72,7 +96,61 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
   const [zoom, setZoom] = useState<ZoomMode>("fit");
   const [diffOpacity, setDiffOpacity] = useState(1);
   const [sliderPosition, setSliderPosition] = useState(50);
+  const [onionOpacity, setOnionOpacity] = useState(0.5);
+  const [singleView, setSingleView] = useState<SingleView>("reference");
   const blink = useBlink(mode === "blink");
+
+  // Frame-by-frame stepping through the history, oldest first -- the same
+  // left-to-right order as the timeline underneath.
+  const chronological = useMemo(
+    () =>
+      [...runs].sort(
+        (a, b) => new Date(a.evaluated_at).getTime() - new Date(b.evaluated_at).getTime(),
+      ),
+    [runs],
+  );
+  const position = chronological.findIndex(
+    (r) => r.evaluation_result_id === run.evaluation_result_id,
+  );
+  function stepRun(offset: number) {
+    const target = chronological[position + offset];
+    if (target) onSelectRun(target);
+  }
+
+  // Keyboard: C = next display mode (Shift+C = previous), B = next
+  // background, ← / → = older / newer result. "/" (focus history search)
+  // lives in RunHistory. Typing, sliders and open dialogs are excluded by
+  // shouldIgnoreShortcut, so none of these can fight normal input.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (shouldIgnoreShortcut(e)) return;
+      switch (e.key) {
+        case "c":
+        case "C":
+          e.preventDefault();
+          setMode((m) => cycle(MODE_KEYS, m, e.shiftKey ? -1 : 1));
+          setHoverRel(null);
+          break;
+        case "b":
+        case "B":
+          e.preventDefault();
+          setBackground((b) => cycle(BACKGROUND_KEYS, b, e.shiftKey ? -1 : 1));
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          stepRun(-1);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          stepRun(1);
+          break;
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // stepRun closes over position/chronological; re-register when they change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, chronological, onSelectRun]);
   const [referenceCapturedImageId, setReferenceCapturedImageId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -241,11 +319,29 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
 
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-lg)" }}>
-      <div>
-        <p className="eyebrow">Diff Viewer</p>
-        <h2 style={{ fontSize: 24, marginTop: 4, display: "flex", alignItems: "center", gap: "var(--spacing-md)", flexWrap: "wrap" }}>
-          {run.build_version} <VerdictBadge verdict={run.verdict} />
-        </h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "var(--spacing-md)" }}>
+        <div>
+          <p className="eyebrow">Diff Viewer</p>
+          <h2 style={{ fontSize: 24, marginTop: 4, display: "flex", alignItems: "center", gap: "var(--spacing-md)", flexWrap: "wrap" }}>
+            {run.build_version} <VerdictBadge verdict={run.verdict} />
+          </h2>
+        </div>
+        <div role="group" aria-label="結果のコマ送り" style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)" }}>
+          <button type="button" className="btn btn-tertiary btn-sm" disabled={position <= 0} onClick={() => stepRun(-1)}>
+            ◀ 前の結果
+          </button>
+          <span className="num" style={{ fontSize: 13, minWidth: "6ch", textAlign: "center" }}>
+            {position + 1} / {chronological.length}
+          </span>
+          <button
+            type="button"
+            className="btn btn-tertiary btn-sm"
+            disabled={position < 0 || position >= chronological.length - 1}
+            onClick={() => stepRun(1)}
+          >
+            次の結果 ▶
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-md) var(--spacing-xl)", alignItems: "center" }}>
@@ -266,12 +362,39 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
         </ToolbarGroup>
       </div>
 
+      <p className="text-body-mid" style={{ margin: 0, fontSize: 12 }}>
+        <span className="kbd">C</span> 表示切替 · <span className="kbd">B</span> 背景 · <span className="kbd">←</span>{" "}
+        <span className="kbd">→</span> 前後の結果 · <span className="kbd">/</span> 履歴を検索
+      </p>
+
       {error && <p style={{ color: "var(--color-fail)" }}>reference画像の解決に失敗しました: {error}</p>}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-lg)", alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 480px", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
           {mode === "slider" && <SliderControls position={sliderPosition} onChange={setSliderPosition} />}
           {mode === "blink" && <BlinkControls {...blink} />}
+          {mode === "single" && (
+            <SegmentedControl label="表示する画像" options={SINGLE_OPTIONS} value={singleView} onChange={setSingleView} />
+          )}
+          {mode === "onion" && (
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-md)", fontSize: 13, color: "var(--color-body)" }}>
+              <span>Reference</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={onionOpacity}
+                aria-label="撮影画像の濃さ(0で基準画像のみ、1で撮影画像のみ)"
+                onChange={(e) => setOnionOpacity(Number(e.target.value))}
+                style={{ flex: 1, maxWidth: 360 }}
+              />
+              <span>Captured</span>
+              <span className="num" style={{ minWidth: "4ch", textAlign: "right" }}>
+                {(onionOpacity * 100).toFixed(0)}%
+              </span>
+            </label>
+          )}
           <div
             ref={stageRef}
             role="tabpanel"
@@ -342,6 +465,37 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                 which={blink.which}
               />
             )}
+
+            {mode === "onion" &&
+              (referenceUrl ? (
+                <div style={stackWrapperStyle(zoom)}>
+                  <img
+                    src={referenceUrl}
+                    alt="Reference"
+                    crossOrigin="anonymous"
+                    style={{ display: "block", ...imageSizeStyle(zoom, naturalWidth) }}
+                  />
+                  <img
+                    src={capturedUrl}
+                    alt="Captured"
+                    crossOrigin="anonymous"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: onionOpacity }}
+                  />
+                </div>
+              ) : (
+                <p className="stage-note">Reference画像を読み込み中…</p>
+              ))}
+
+            {mode === "single" && (
+              <Frame
+                label={SINGLE_LABELS[singleView]}
+                src={singleView === "reference" ? referenceUrl : singleView === "captured" ? capturedUrl : diffUrl}
+                zoom={zoom}
+                naturalWidth={naturalWidth}
+                ringStyle={ringStyle}
+                {...hoverHandlers}
+              />
+            )}
           </div>
 
           {mode === "diff" && (
@@ -362,7 +516,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
             </label>
           )}
 
-          {(mode === "diff" || mode === "side-by-side") && (
+          {(mode === "diff" || mode === "side-by-side" || mode === "single") && (
             <>
               <PixelInspectorPanel
                 hoverPixel={hoverPixel}
@@ -380,8 +534,9 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
           )}
         </div>
 
-        <div style={{ flex: "0 0 260px", minWidth: 220 }}>
+        <div style={{ flex: "0 0 260px", minWidth: 220, display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
           <ResultPanel run={run} regionCount={clusterResult ? clusterResult.total : null} />
+          <ThresholdLab key={run.evaluation_result_id} run={run} />
         </div>
       </div>
 

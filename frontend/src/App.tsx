@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "./api";
 import { CapturePanel } from "./components/CapturePanel";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { Dashboard } from "./components/Dashboard";
 import {
   DEFAULT_DIFF_SETTINGS,
   type DiffSettingsValue,
 } from "./components/DiffSettings";
 import { DiffViewer } from "./components/DiffViewer";
+import { EmptyState } from "./components/EmptyState";
 import { GettingStarted } from "./components/GettingStarted";
 import { InstructionPanel } from "./components/InstructionPanel";
+import { PromoteSummary } from "./components/PromoteSummary";
 import { RunHistory } from "./components/RunHistory";
 import { SegmentedControl } from "./components/SegmentedControl";
 import { ToastStack } from "./components/ToastStack";
@@ -52,6 +55,8 @@ export default function App() {
   );
   const [batchBusy, setBatchBusy] = useState(false);
   const [openAlertCount, setOpenAlertCount] = useState(0);
+  // Capture awaiting confirmation before it replaces the active Reference.
+  const [pendingPromoteId, setPendingPromoteId] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
   function handleThemeChange(next: ThemeMode) {
@@ -178,6 +183,23 @@ export default function App() {
     }
   }
 
+  // The first promotion just establishes a baseline. Replacing an existing one
+  // changes what every later diff is judged against, so that case is confirmed.
+  function handlePromoteRequest(capturedImageId: string) {
+    if (activeReference && activeReference.captured_image_id !== capturedImageId) {
+      setPendingPromoteId(capturedImageId);
+      return;
+    }
+    return handlePromote(capturedImageId);
+  }
+
+  async function handleConfirmPromote() {
+    const id = pendingPromoteId;
+    if (!id) return;
+    await handlePromote(id);
+    setPendingPromoteId(null);
+  }
+
   async function handlePromote(capturedImageId: string) {
     if (!selectedInstructionId) return;
     setBusyCapturedImageId(capturedImageId);
@@ -272,6 +294,19 @@ export default function App() {
     <div
       style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}
     >
+      <ConfirmDialog
+        open={pendingPromoteId !== null}
+        title="基準画像(Reference)を更新しますか?"
+        confirmLabel="Referenceを更新する"
+        busy={busyCapturedImageId !== null && busyCapturedImageId === pendingPromoteId}
+        onConfirm={handleConfirmPromote}
+        onCancel={() => setPendingPromoteId(null)}
+      >
+        <PromoteSummary
+          current={capturedImages.find((c) => c.captured_image_id === activeReference?.captured_image_id) ?? null}
+          next={capturedImages.find((c) => c.captured_image_id === pendingPromoteId) ?? null}
+        />
+      </ConfirmDialog>
       <ToastStack onOpenInstruction={handleOpenFromDashboard} />
       <header
         style={{
@@ -407,7 +442,9 @@ export default function App() {
                   diffSettings={diffSettings}
                   onDiffSettingsChange={setDiffSettings}
                   onUpload={handleUpload}
-                  onPromote={handlePromote}
+                  onPromote={async (id) => {
+                    await handlePromoteRequest(id);
+                  }}
                   onRunDiff={handleRunDiff}
                   onRunDiffBatch={handleRunDiffBatch}
                   onDelete={handleDelete}
@@ -430,9 +467,14 @@ export default function App() {
                 )}
               </>
             ) : (
-              <p className="text-body-mid">
-                左のパネルから撮影指示を選択するか、新規作成してください。
-              </p>
+              <EmptyState
+                title="撮影指示が選択されていません"
+                description="撮影指示は「同じ画面を継続して比較する単位」です。"
+                steps={[
+                  "左のパネルで、既存の撮影指示を選ぶ",
+                  "ない場合は、シーンIDを入力して「撮影指示を作成」する",
+                ]}
+              />
             )}
           </div>
         </main>

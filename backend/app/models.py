@@ -104,6 +104,52 @@ class DiffRunResult(BaseModel):
     alert: Optional[dict] = None
 
 
+class DiffPreviewResult(BaseModel):
+    """What a diff run *would* produce; nothing about it is persisted. The
+    verdict is the engine's plain pass/fail -- flaky is a history-level label
+    assigned when results are recorded, so it cannot appear here."""
+
+    captured_image_id: str
+    reference_image_id: str
+    diff_pixel_count: int
+    diff_percentage: float
+    verdict: Literal["pass", "fail"]
+    resolution_note: Optional[str] = None
+    persisted: Literal[False] = False
+
+
+class ContinuityRequest(BaseModel):
+    # Frames of one animation, in playback order.
+    captured_image_ids: list[str] = Field(min_length=3, max_length=5000)
+    per_pixel_tolerance: int = Field(default=0, ge=0, le=255)
+    # How many robust standard deviations above the median a jump must be.
+    k: float = Field(default=6.0, gt=0)
+    # Absolute floor, as a percentage of the frame, so near-static sequences
+    # don't flag a few noisy pixels.
+    min_jump_percent: float = Field(default=0.1, ge=0)
+
+
+class ContinuityOutlier(BaseModel):
+    pair_index: int
+    from_captured_image_id: str
+    to_captured_image_id: str
+    from_build_version: str
+    to_build_version: str
+    diff_pixel_count: int
+    diff_percentage: float
+
+
+class ContinuityResponse(BaseModel):
+    frame_count: int
+    pair_count: int
+    # Changed-pixel count between each adjacent pair (len == pair_count).
+    pair_diffs: list[int]
+    median: float
+    mad: float
+    threshold: float
+    outliers: list[ContinuityOutlier]
+
+
 class DiffBatchRunRequest(BaseModel):
     captured_image_ids: list[str]
     reference_image_id: Optional[str] = None
