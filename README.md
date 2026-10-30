@@ -136,6 +136,29 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `VITE_API_BASE`(フロントのビルド時) | `http://localhost:8000` | UIが呼ぶAPIのURL |
 | `VRQA_ALERT_SINK` | `noop` | 下記「アラートsinkの設定」 |
 
+### 本番相当で動かす手順
+
+デプロイ先の設定(Dockerfile等)はこのリポジトリに含めていない。どこに置く場合も次の形になる。
+
+```bash
+# 1. API: 永続ディスクにDBとBLOBを置いて起動(UIの配信元オリジンを必ず指定)
+cd backend
+uv sync
+VRQA_DB_PATH=/data/vrqa.sqlite3 VRQA_BLOB_ROOT=/data/blobs \
+VRQA_CORS_ORIGINS=https://qa.example.com \
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 2. UI: APIのURLをビルド時に埋め込み、dist/ を任意の静的ホスティングに置く
+cd frontend
+npm ci
+VITE_API_BASE=https://api.example.com npm run build   # -> frontend/dist
+```
+
+- APIは1プロセスで動かす前提(接続はリクエストごと・書き込みの直列化はプロセス内ロック)。複数プロセス/複数台に増やすなら、先にSQLiteを別のDBへ移すこと。
+- `/data` はコンテナ再作成で消えない場所にする(DBとBLOBは同じボリューム)。
+- `/api/health` が疎通確認用。
+- 認証は付いていない。インターネットに公開する場合は、前段のリバースプロキシ等でアクセス制限を掛けること。
+
 ## アラートsinkの設定
 
 環境変数 `VRQA_ALERT_SINK` で切替(既定は `noop`)。
