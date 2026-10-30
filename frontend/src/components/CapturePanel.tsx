@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { imageUrl } from "../api";
 import type { CapturedImage, ReferenceImage } from "../types";
-import { DiffSettings, type DiffSettingsValue } from "./DiffSettings";
+import type { DiffSettingsValue } from "../diffSettingsValue";
+import { DiffSettings } from "./DiffSettings";
 import { EmptyState } from "./EmptyState";
 
 interface Props {

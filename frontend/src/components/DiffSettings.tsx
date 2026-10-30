@@ -1,18 +1,5 @@
 import { useState } from "react";
-
-export interface DiffSettingsValue {
-  perPixelTolerance: number;
-  maxDiffPixels: number;
-  minDiffRegionPixels: number;
-  allowCenterCrop: boolean;
-}
-
-export const DEFAULT_DIFF_SETTINGS: DiffSettingsValue = {
-  perPixelTolerance: 0,
-  maxDiffPixels: 0,
-  minDiffRegionPixels: 1,
-  allowCenterCrop: false,
-};
+import { DEFAULT_DIFF_SETTINGS, type DiffSettingsValue } from "../diffSettingsValue";
 
 interface Props {
   value: DiffSettingsValue;

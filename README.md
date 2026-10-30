@@ -24,7 +24,7 @@
 | バックエンド | Python 3.12 / FastAPI / SQLite / Pillow / NumPy / SciPy |
 | フロントエンド | React 19 / TypeScript / Vite 8 |
 | パッケージ管理 | `uv`(backend) / `npm`(frontend) |
-| テスト | pytest(backend, 37件) |
+| テスト | pytest(backend 97件 + capture_agents 19件) |
 
 ## 機能一覧
 
@@ -81,7 +81,7 @@ uv run pytest -q
 ```bash
 cd backend
 uv sync --dev
-uv run pytest -q          # 37件全パスするはず
+uv run pytest -q          # 97件全パスするはず
 uv run uvicorn app.main:app --port 8000 --reload
 ```
 
@@ -112,7 +112,7 @@ npm run dev
 ```bash
 cd capture_agents
 uv sync --dev
-uv run pytest -q                                    # 8件全パスするはず
+uv run pytest -q                                    # 19件全パスするはず
 uv run --with pillow --with numpy python examples/fake_agent_smoke_test.py
 ```
 
@@ -125,6 +125,16 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 3. InspectorでbackendUrl(`http://localhost:8000`)・cameraName・sceneOrLevelIdを設定
 4. Play中に `RunOnce()` を呼び出す(ボタン等から)
 5. Consoleに `verdict = pass` または `verdict = fail` が出力されれば成功
+
+## 環境変数(デプロイ時の設定)
+
+| 変数 | 既定 | 用途 |
+|---|---|---|
+| `VRQA_DB_PATH` | `backend/data/vrqa.sqlite3` | SQLiteファイルの場所 |
+| `VRQA_BLOB_ROOT` | `backend/data/blobs` | 画像BLOBの置き場(DBと同じ永続ボリュームに置くこと) |
+| `VRQA_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | UIの配信元オリジン(カンマ区切り)。**別ホストでUIを配信するなら必ず指定**。ここに無いオリジンからはブラウザがAPIを呼べない。`*`は拒否される(画像をcrossoriginで読むため、全許可にしない) |
+| `VITE_API_BASE`(フロントのビルド時) | `http://localhost:8000` | UIが呼ぶAPIのURL |
+| `VRQA_ALERT_SINK` | `noop` | 下記「アラートsinkの設定」 |
 
 ## アラートsinkの設定
 
@@ -155,7 +165,7 @@ VisualRegressionQATool/
 │   │   ├── alert_sink.py    # IAlertSinkと実装群
 │   │   ├── routers/         # instructions/captures/references/diffs/runs/alerts
 │   │   └── main.py          # FastAPIアプリ組み立て
-│   └── tests/                # pytest 94件
+│   └── tests/                # pytest 97件
 ├── frontend/
 │   └── src/
 │       ├── theme.css              # Zapier風デザイントークン

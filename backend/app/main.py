@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import db
 from .alert_sink import build_alert_sink_from_env
+from .config import cors_origins_from_env
 from .routers import alerts, analysis, captures, diffs, instructions, references, runs
 from .storage import DEFAULT_BLOB_ROOT, BlobStore
 
@@ -33,7 +34,7 @@ app = FastAPI(title="VisualRegressionQATool API", version="0.1.0", lifespan=life
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_origins_from_env(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

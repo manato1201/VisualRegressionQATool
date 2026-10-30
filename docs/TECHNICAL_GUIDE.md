@@ -162,7 +162,7 @@ Unity側の決定的レンダリング出力(Phase 1-2、可逆圧縮PNG)を主�
 
 ## 8. テスト戦略
 
-`backend/tests/`配下、pytest 37件。
+`backend/tests/`配下、pytest 97件(連続性・プレビュー・CORS設定・並行リクエスト等を含む)。
 
 | ファイル | 検証内容 |
 |---|---|

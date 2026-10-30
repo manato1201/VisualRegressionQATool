@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCount, formatPercent } from "../format";
 import { shouldIgnoreShortcut } from "../shortcuts";
 import type { FirstBadCommit, RunRow, Verdict } from "../types";
+import { AsciiGarden } from "./AsciiGarden";
 import { EmptyState } from "./EmptyState";
-import { VERDICT_DESCRIPTION, VerdictBadge } from "./VerdictBadge";
+import { VERDICT_DESCRIPTION } from "../verdictText";
+import { VerdictBadge } from "./VerdictBadge";
 
 const PAGE_SIZE = 10;
 
@@ -66,7 +68,9 @@ export function RunHistory({ runs, firstBadCommit, selectedRunId, onSelectRun }:
   // When the selection moves (a click, or the viewer's arrow keys), show the
   // page it is on rather than leaving the highlighted row off-screen.
   const filteredRef = useRef(filtered);
-  filteredRef.current = filtered;
+  useEffect(() => {
+    filteredRef.current = filtered;
+  }, [filtered]);
   useEffect(() => {
     const index = filteredRef.current.findIndex((r) => r.evaluation_result_id === selectedRunId);
     if (index >= 0) setPage(Math.floor(index / PAGE_SIZE));
@@ -127,6 +131,7 @@ export function RunHistory({ runs, firstBadCommit, selectedRunId, onSelectRun }:
 
       {runs.length === 0 ? (
         <EmptyState
+          art={<AsciiGarden mood="waiting" />}
           title="まだ検査結果がありません"
           description="この撮影指示は、差分を一度も実行していない「未検査」の状態です。"
           steps={[
@@ -195,7 +200,9 @@ export function RunHistory({ runs, firstBadCommit, selectedRunId, onSelectRun }:
                       <tr
                         key={run.evaluation_result_id}
                         tabIndex={0}
-                        aria-selected={selected}
+                        // aria-selected is only valid on rows of a grid; a plain
+                        // table row marks "this is the open one" with aria-current.
+                        aria-current={selected ? "true" : undefined}
                         onClick={() => onSelectRun(run)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {

@@ -11,15 +11,19 @@ import { api, describeApiError, imageUrl } from "../api";
 import {
   clusterContains,
   findDiffClusters,
+  type DiffCluster,
   type DiffClusterResult,
 } from "../diffClusters";
 import { loadPixelSampler, type PixelSampler } from "../pixelSampler";
 import { cycle, shouldIgnoreShortcut } from "../shortcuts";
 import type { FirstBadCommit, RunRow } from "../types";
+import { AsciiGarden } from "./AsciiGarden";
 import { DotChart } from "./DotChart";
+import { EmptyState } from "./EmptyState";
 import { SegmentedControl } from "./SegmentedControl";
 import { VerdictBadge } from "./VerdictBadge";
-import { BlinkCompare, BlinkControls, useBlink } from "./diffviewer/BlinkCompare";
+import { BlinkCompare, BlinkControls } from "./diffviewer/BlinkCompare";
+import { useBlink } from "./diffviewer/useBlink";
 import { CompareSlider, SliderControls } from "./diffviewer/CompareSlider";
 import { Frame } from "./diffviewer/Frame";
 import {
@@ -81,6 +85,17 @@ interface Props {
 interface HoverRel {
   x: number;
   y: number;
+}
+
+/** Percentage box for a cluster, in the diff image's own pixel space, so the
+ * same style lines up on every image of the same size. */
+function regionStyle(cluster: DiffCluster, size: { width: number; height: number }): CSSProperties {
+  return {
+    left: `${(cluster.minX / size.width) * 100}%`,
+    top: `${(cluster.minY / size.height) * 100}%`,
+    width: `${((cluster.maxX - cluster.minX + 1) / size.width) * 100}%`,
+    height: `${((cluster.maxY - cluster.minY + 1) / size.height) * 100}%`,
+  };
 }
 
 function toPixel(rel: HoverRel, size: { width: number; height: number }): HoverPixel {
@@ -159,6 +174,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
   const [hoverRel, setHoverRel] = useState<HoverRel | null>(null);
   const [clusterResult, setClusterResult] = useState<DiffClusterResult | null>(null);
   const [pinnedClusterIndex, setPinnedClusterIndex] = useState<number | null>(null);
+  const [showAllRegions, setShowAllRegions] = useState(false);
 
   // Smooth upscaling blurs a 1px difference into its neighbours -- exactly
   // what a pixel-comparison tool must not do. Track the stage width so images
@@ -279,14 +295,12 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
     : -1;
   const hoveredCluster = hoveredClusterIndex >= 0 ? clusters[hoveredClusterIndex] : null;
   const ringStyle: CSSProperties | null =
-    hoveredCluster && diffSize
-      ? {
-          left: `${(hoveredCluster.minX / diffSize.width) * 100}%`,
-          top: `${(hoveredCluster.minY / diffSize.height) * 100}%`,
-          width: `${((hoveredCluster.maxX - hoveredCluster.minX + 1) / diffSize.width) * 100}%`,
-          height: `${((hoveredCluster.maxY - hoveredCluster.minY + 1) / diffSize.height) * 100}%`,
-        }
-      : null;
+    hoveredCluster && diffSize ? regionStyle(hoveredCluster, diffSize) : null;
+
+  // "Show every region": still outlines around all detected clusters, for
+  // seeing at a glance where the changes are before hovering any of them.
+  const regionBoxes: CSSProperties[] | undefined =
+    showAllRegions && diffSize ? clusters.map((c) => regionStyle(c, diffSize)) : undefined;
 
   // Clicking inside a hovered cluster pins it, so the zoomed crop stays put
   // once the cursor moves away to compare it against the pixel inspector.
@@ -427,6 +441,9 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                   onMouseLeave={hoverHandlers.onLeave}
                   onClick={handleClickPin}
                 />
+                {regionBoxes?.map((style, i) => (
+                  <div key={i} className="diff-region-box" style={style} />
+                ))}
                 {ringStyle && <div className="diff-focus-ring" style={ringStyle} />}
               </div>
             )}
@@ -440,9 +457,9 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                   gap: "var(--spacing-lg)",
                 }}
               >
-                <Frame label="Captured" src={capturedUrl} zoom={zoom} naturalWidth={naturalWidth} ringStyle={ringStyle} {...hoverHandlers} />
-                <Frame label="Reference" src={referenceUrl} zoom={zoom} naturalWidth={naturalWidth} ringStyle={ringStyle} {...hoverHandlers} />
-                <Frame label="Diff Highlight" src={diffUrl} zoom={zoom} naturalWidth={naturalWidth} ringStyle={ringStyle} {...hoverHandlers} />
+                <Frame label="Captured" src={capturedUrl} zoom={zoom} naturalWidth={naturalWidth} ringStyle={ringStyle} regionBoxes={regionBoxes} {...hoverHandlers} />
+                <Frame label="Reference" src={referenceUrl} zoom={zoom} naturalWidth={naturalWidth} ringStyle={ringStyle} regionBoxes={regionBoxes} {...hoverHandlers} />
+                <Frame label="Diff Highlight" src={diffUrl} zoom={zoom} naturalWidth={naturalWidth} ringStyle={ringStyle} regionBoxes={regionBoxes} {...hoverHandlers} />
               </div>
             )}
 
@@ -493,6 +510,7 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                 zoom={zoom}
                 naturalWidth={naturalWidth}
                 ringStyle={ringStyle}
+                regionBoxes={regionBoxes}
                 {...hoverHandlers}
               />
             )}
@@ -524,12 +542,36 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                 referencePixel={referencePixel}
                 canInspect={canInspect}
               />
-              {clusters.length > 0 && !pinnedCluster && (
-                <p style={{ fontSize: 12, margin: 0 }} className="text-body-mid">
-                  差分の領域にカーソルを合わせるとリングが出ます。クリックで拡大表示を固定できます。
+              {clusters.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-md)", alignItems: "center", fontSize: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", fontSize: 13 }}>
+                    <input type="checkbox" checked={showAllRegions} onChange={(e) => setShowAllRegions(e.target.checked)} />
+                    差分の領域をすべて囲む
+                    <span className="num">
+                      ({clusters.length}
+                      {clusterResult && clusterResult.total > clusters.length ? ` / ${clusterResult.total}` : ""})
+                    </span>
+                  </label>
+                  {!pinnedCluster && (
+                    <span className="text-body-mid">
+                      領域にカーソルを合わせるとリングが出ます。クリックで拡大表示を固定できます。
+                    </span>
+                  )}
+                </div>
+              )}
+              {clusterResult && clusterResult.total > clusters.length && showAllRegions && (
+                <p className="text-body-mid" style={{ margin: 0, fontSize: 12 }}>
+                  領域が多いため、大きい順に上位 {clusters.length} 件だけ囲んでいます(全 {clusterResult.total} 件)。
                 </p>
               )}
               {zoomPanel}
+              {run.diff_pixel_count === 0 && (
+                <EmptyState
+                  art={<AsciiGarden mood="calm" />}
+                  title="差分ゼロ — 虫のいない庭です"
+                  description="撮影画像は基準画像とピクセル単位で一致しています。"
+                />
+              )}
             </>
           )}
         </div>

@@ -261,6 +261,16 @@ select {
   }
 }
 
+/* "Show every diff region": a still, dashed outline (no animation -- the pulsing
+ * ring above is reserved for the one region under the cursor). */
+.diff-region-box {
+  position: absolute;
+  pointer-events: none;
+  outline: 2px dashed var(--color-diff);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* 5. Segment rail: replaces the old plain button pair for view-mode switching. */
 .segment-rail {
   display: inline-flex;

@@ -3,10 +3,6 @@ import { api, describeApiError } from "./api";
 import { CapturePanel } from "./components/CapturePanel";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { Dashboard } from "./components/Dashboard";
-import {
-  DEFAULT_DIFF_SETTINGS,
-  type DiffSettingsValue,
-} from "./components/DiffSettings";
 import { DiffViewer } from "./components/DiffViewer";
 import { EmptyState } from "./components/EmptyState";
 import { GettingStarted } from "./components/GettingStarted";
@@ -15,6 +11,10 @@ import { PromoteSummary } from "./components/PromoteSummary";
 import { RunHistory } from "./components/RunHistory";
 import { SegmentedControl } from "./components/SegmentedControl";
 import { ToastStack } from "./components/ToastStack";
+import {
+  DEFAULT_DIFF_SETTINGS,
+  type DiffSettingsValue,
+} from "./diffSettingsValue";
 import { applyTheme, getInitialTheme, type ThemeMode } from "./theme";
 import type {
   CaptureInstruction,

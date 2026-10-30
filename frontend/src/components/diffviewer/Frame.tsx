@@ -10,6 +10,8 @@ interface Props {
   onLeave?: () => void;
   onClick?: () => void;
   ringStyle?: CSSProperties | null;
+  /** Static outlines around every detected diff region (the "show all" toggle). */
+  regionBoxes?: CSSProperties[];
 }
 
 /** One labelled image in the side-by-side grid. The focus ring is a
@@ -24,6 +26,7 @@ export function Frame({
   onLeave,
   onClick,
   ringStyle,
+  regionBoxes,
 }: Props) {
   return (
     <div
@@ -52,6 +55,9 @@ export function Frame({
             onMouseLeave={onLeave}
             onClick={onClick}
           />
+          {regionBoxes?.map((style, i) => (
+            <div key={i} className="diff-region-box" style={style} />
+          ))}
           {ringStyle && <div className="diff-focus-ring" style={ringStyle} />}
         </div>
       ) : (
