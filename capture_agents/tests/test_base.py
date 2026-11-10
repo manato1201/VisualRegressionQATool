@@ -190,3 +190,24 @@ def test_run_capture_and_diff_calls_prepare_then_capture_then_uploads_then_diffs
     assert agent.prepared_with is source
     assert result["evaluation_result"]["verdict"] == "pass"
     assert calls == ["/api/captures", "/api/diffs/run"]
+
+
+def test_api_key_is_sent_when_given_or_in_env(monkeypatch):
+    import httpx
+
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("x-api-key"))
+        return httpx.Response(200, json=[])
+
+    def make(**kw):
+        client = httpx.Client(base_url="http://backend.local", transport=httpx.MockTransport(handler))
+        return BackendClient(base_url="http://backend.local", client=client, **kw)
+
+    monkeypatch.delenv("VRQA_API_KEY", raising=False)
+    make().list_instructions()
+    make(api_key="vrqa_explicit").list_instructions()
+    monkeypatch.setenv("VRQA_API_KEY", "vrqa_from_env")
+    make().list_instructions()
+    assert seen == [None, "vrqa_explicit", "vrqa_from_env"]

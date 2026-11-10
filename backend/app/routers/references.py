@@ -4,13 +4,13 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import models, repository
+from .. import auth, models, repository
 from ..deps import get_conn
 
 router = APIRouter(prefix="/api/references", tags=["reference_image"])
 
 
-@router.post("/promote", response_model=models.ReferenceImageOut)
+@router.post("/promote", dependencies=[auth.admin], response_model=models.ReferenceImageOut)
 def promote(
     body: models.ReferencePromoteRequest, conn: sqlite3.Connection = Depends(get_conn)
 ):

@@ -8,14 +8,14 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from PIL import Image
 
-from .. import models, repository
+from .. import auth, models, repository
 from ..deps import get_blob_store, get_conn
 from ..storage import BlobStore
 
 router = APIRouter(prefix="/api/captures", tags=["captured_image"])
 
 
-@router.post("", response_model=models.CapturedImageOut)
+@router.post("", dependencies=[auth.operator], response_model=models.CapturedImageOut)
 async def upload_captured_image(
     instruction_id: str = Form(...),
     build_version: str = Form(...),
@@ -95,7 +95,7 @@ def get_captured_image_bytes(
     return FileResponse(path, headers={"Vary": "Origin"})
 
 
-@router.delete("/{captured_image_id}", status_code=204)
+@router.delete("/{captured_image_id}", dependencies=[auth.admin], status_code=204)
 def delete_captured_image(
     captured_image_id: str,
     conn: sqlite3.Connection = Depends(get_conn),

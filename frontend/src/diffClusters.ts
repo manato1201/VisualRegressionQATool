@@ -46,7 +46,7 @@ export async function findDiffClusters(
   maxClusters = 5,
 ): Promise<DiffClusterResult> {
   const img = new Image();
-  img.crossOrigin = "anonymous";
+  img.crossOrigin = "use-credentials";
 
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();

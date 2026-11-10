@@ -62,13 +62,13 @@ export function CompareSlider({
       <img
         src={referenceUrl}
         alt="Reference"
-        crossOrigin="anonymous"
+        crossOrigin="use-credentials"
         style={{ display: "block", ...imageSizeStyle(zoom, naturalWidth) }}
       />
       <img
         src={capturedUrl}
         alt="Captured"
-        crossOrigin="anonymous"
+        crossOrigin="use-credentials"
         style={{
           position: "absolute",
           inset: 0,

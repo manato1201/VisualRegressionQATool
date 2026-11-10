@@ -5,14 +5,14 @@ from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import continuity, models, repository
+from .. import auth, continuity, models, repository
 from ..deps import get_blob_store, get_conn
 from ..storage import BlobStore
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 
-@router.post("/continuity", response_model=models.ContinuityResponse)
+@router.post("/continuity", dependencies=[auth.operator], response_model=models.ContinuityResponse)
 def check_continuity(
     body: models.ContinuityRequest,
     conn: sqlite3.Connection = Depends(get_conn),

@@ -27,7 +27,8 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init);
+  // 認証(VRQA_AUTH=required)のクッキーを送る。API とは別オリジンでも、CORS が許可した origin なら付く。
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include", ...init });
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -66,7 +67,24 @@ export function imageUrl(kind: "captures" | "diffs", id: string): string {
   return `${API_BASE}/api/${kind}/${id}/image`;
 }
 
+export interface Me {
+  mode: "off" | "required";
+  authenticated: boolean;
+  name: string | null;
+  role: "viewer" | "operator" | "admin" | null;
+  source: string | null;
+}
+
 export const api = {
+  me: () => request<Me>("/api/auth/me"),
+  login: (apiKey: string) =>
+    request<Me>("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey }),
+    }),
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+
   listInstructions: () => request<CaptureInstruction[]>("/api/instructions"),
 
   createInstruction: (body: {

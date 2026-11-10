@@ -1,7 +1,7 @@
 /** Loads an image into an offscreen canvas so individual pixels can be
  * sampled without re-decoding on every mouse move. Requires the image
  * response to carry CORS headers (the backend's CORSMiddleware already
- * allows the dev origin) plus `crossOrigin = "anonymous"` on the <img>,
+ * allows the dev origin) plus `crossOrigin = "use-credentials"` on the <img>,
  * otherwise the canvas is "tainted" and getImageData() throws. */
 export interface PixelSampler {
   width: number;
@@ -15,7 +15,7 @@ export interface PixelSampler {
 export function loadPixelSampler(url: string): Promise<PixelSampler> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    img.crossOrigin = "use-credentials";
     img.onload = () => {
       const width = img.naturalWidth;
       const height = img.naturalHeight;

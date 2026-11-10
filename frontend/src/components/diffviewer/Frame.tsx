@@ -45,7 +45,7 @@ export function Frame({
           <img
             src={src}
             alt={label}
-            crossOrigin="anonymous"
+            crossOrigin="use-credentials"
             style={{
               display: "block",
               ...imageSizeStyle(zoom, naturalWidth),

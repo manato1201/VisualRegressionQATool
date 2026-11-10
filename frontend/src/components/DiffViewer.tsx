@@ -422,14 +422,14 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                     src={referenceUrl}
                     alt=""
                     aria-hidden="true"
-                    crossOrigin="anonymous"
+                    crossOrigin="use-credentials"
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
                   />
                 )}
                 <img
                   src={diffUrl}
                   alt="差分ハイライト"
-                  crossOrigin="anonymous"
+                  crossOrigin="use-credentials"
                   style={{
                     display: "block",
                     position: "relative",
@@ -489,13 +489,13 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
                   <img
                     src={referenceUrl}
                     alt="Reference"
-                    crossOrigin="anonymous"
+                    crossOrigin="use-credentials"
                     style={{ display: "block", ...imageSizeStyle(zoom, naturalWidth) }}
                   />
                   <img
                     src={capturedUrl}
                     alt="Captured"
-                    crossOrigin="anonymous"
+                    crossOrigin="use-credentials"
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: onionOpacity }}
                   />
                 </div>

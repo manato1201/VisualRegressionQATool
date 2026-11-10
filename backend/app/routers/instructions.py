@@ -4,13 +4,13 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import models, repository
+from .. import auth, models, repository
 from ..deps import get_conn
 
 router = APIRouter(prefix="/api/instructions", tags=["capture_instruction"])
 
 
-@router.post("", response_model=models.CaptureInstructionOut)
+@router.post("", dependencies=[auth.operator], response_model=models.CaptureInstructionOut)
 def create_instruction(
     body: models.CaptureInstructionCreate, conn: sqlite3.Connection = Depends(get_conn)
 ):

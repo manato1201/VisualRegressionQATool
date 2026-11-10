@@ -134,6 +134,10 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `VRQA_BLOB_ROOT` | `backend/data/blobs` | 画像BLOBの置き場(DBと同じ永続ボリュームに置くこと) |
 | `VRQA_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | UIの配信元オリジン(カンマ区切り)。**別ホストでUIを配信するなら必ず指定**。ここに無いオリジンからはブラウザがAPIを呼べない。`*`は拒否される(画像をcrossoriginで読むため、全許可にしない) |
 | `VRQA_ALLOWED_HOSTS` | (ループバックのみ) | APIを開くホスト名(カンマ区切り。ポートは無視)。**localhost / 127.0.0.1 以外のホスト名でAPIを公開するなら必ず指定**。DNS rebinding対策のHost検査で、無いホストは403。変更操作(POST等)は、Originが同一オリジンか `VRQA_CORS_ORIGINS` の中にあるときだけ通る。**認証ではない**(`app/security.py`) |
+| `VRQA_AUTH` | `off` | `required` で認証を必須にする(下の「認証と役割」)。`required` でユーザーが 1 人もいなければ**起動しない**。 |
+| `VRQA_AUTH_FILE` | `backend/data/auth_users.json` | ユーザーと役割の保存先(キーは**ハッシュだけ**)。Git に入れない。 |
+| `VRQA_CF_ACCESS_TEAM_DOMAIN` / `VRQA_CF_ACCESS_AUD` | (無効) | 両方を設定すると、Cloudflare Access の JWT でも認証できる(メールで登録ユーザーに対応づける)。 |
+| `VRQA_API_KEY` | (なし) | キャプチャエージェント(Python / Unity)が `X-API-Key` に付けるキー。 |
 | `VITE_API_BASE`(フロントのビルド時) | `http://localhost:8000` | UIが呼ぶAPIのURL |
 | `VRQA_ALERT_SINK` | `noop` | 下記「アラートsinkの設定」 |
 
@@ -159,6 +163,31 @@ VITE_API_BASE=https://api.example.com npm run build   # -> frontend/dist
 - `/data` はコンテナ再作成で消えない場所にする(DBとBLOBは同じボリューム)。
 - `/api/health` が疎通確認用。
 - 認証は付いていない。インターネットに公開する場合は、前段のリバースプロキシ等でアクセス制限を掛けること。
+
+## 認証と役割
+
+既定は**認証なし**(`VRQA_AUTH=off`。Host / Origin のガードだけが効く)。複数人で使うときは `VRQA_AUTH=required` にする。
+
+| 役割 | できること |
+|---|---|
+| `viewer` | 見る(ダッシュボード・差分・画像) |
+| `operator` | viewer + 撮影のアップロード・指示の作成・差分の実行 |
+| `admin` | operator + **Reference(基準画像)への昇格**・撮影の削除 |
+
+```bash
+cd backend
+uv run python -m app.auth add --name alice --role admin     # API キーは 1 度だけ表示される
+uv run python -m app.auth add --name bob --role viewer --email bob@example.com --no-key   # Cloudflare Access だけで使う人
+uv run python -m app.auth list
+uv run python -m app.auth remove --name alice               # そのキーはすぐ使えなくなる
+VRQA_AUTH=required uv run uvicorn app.main:app
+```
+
+- **API クライアント**(Unity・CI・curl): `X-API-Key: <キー>`(または `Authorization: Bearer <キー>`)を付ける。エージェントは環境変数 `VRQA_API_KEY`。
+- **ブラウザ UI**: 最初にログイン画面が出る。API キーを入れると HttpOnly・SameSite=Strict のクッキーになる(画像の `<img>` はヘッダーを付けられないため)。UI を別オリジンで開くなら、`VRQA_CORS_ORIGINS` にその origin を入れる(資格情報つきの CORS は、明示した origin にだけ許可される)。
+- **Cloudflare Access**: `VRQA_CF_ACCESS_TEAM_DOMAIN`・`VRQA_CF_ACCESS_AUD` を設定すると、`Cf-Access-Jwt-Assertion` の JWT を検証する(RS256 だけ・署名/発行者/宛先/期限を必須)。**ユーザーは自動作成しない**: 上の `--email` で登録していない人は 403。
+- 権限の判断は**常にサーバー側**(UI の表示ではない)。足りなければ 403 と、必要な役割が画面に出る。
+- 認証なし(`/api/health`・`/api/auth/me`・`/api/auth/login`)以外の全 API が、`required` では viewer 以上を要求する。
 
 ## アラートsinkの設定
 

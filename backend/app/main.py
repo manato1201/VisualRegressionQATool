@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import db
+from . import auth, db
 from .alert_sink import build_alert_sink_from_env
 from .config import cors_origins_from_env
 from .routers import alerts, analysis, captures, diffs, instructions, references, runs
+from .routers import auth as auth_router
 from .security import install_request_guard
 from .storage import DEFAULT_BLOB_ROOT, BlobStore
 
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
         db.init_db(init_conn)
     finally:
         init_conn.close()
+    auth.ensure_auth_configured()  # VRQA_AUTH=required でユーザーが居なければ、ここで起動を止める
     app.state.db_path = db_path
     app.state.blob_store = BlobStore(blob_root)
     app.state.alert_sink = build_alert_sink_from_env()
@@ -40,17 +42,18 @@ install_request_guard(app, allowed_origins=cors_origins_from_env)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins_from_env(),
+    # ログインのクッキー(auth.COOKIE_NAME)を、許可した origin の UI から送れるようにする。
+    # origins は明示したものだけ("*" は config で拒否済み)なので、credentials を許してよい。
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(instructions.router)
-app.include_router(captures.router)
-app.include_router(references.router)
-app.include_router(diffs.router)
-app.include_router(runs.router)
-app.include_router(alerts.router)
-app.include_router(analysis.router)
+# 認証(app/auth.py)。既定は off(従来どおり)。VRQA_AUTH=required で、全 API が viewer 以上を要求する。
+# 変更系は各エンドポイントで operator / admin を足している。/api/health と /api/auth/* は認証なし。
+app.include_router(auth_router.router)
+for _router in (instructions, captures, references, diffs, runs, alerts, analysis):
+    app.include_router(_router.router, dependencies=[auth.viewer])
 
 
 @app.get("/api/health")

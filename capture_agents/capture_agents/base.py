@@ -7,6 +7,7 @@ server-side changes — see docs/CAPTURE_AGENT_DESIGN.md.
 
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
@@ -61,9 +62,18 @@ class BackendClient:
     """Thin wrapper around the existing FastAPI endpoints. No new server-side
     surface is introduced — see docs/CAPTURE_AGENT_DESIGN.md §1."""
 
-    def __init__(self, base_url: str, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        client: httpx.Client | None = None,
+        api_key: str | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self._client = client or httpx.Client(base_url=self.base_url, timeout=30.0)
+        # 認証が必要な環境(VRQA_AUTH=required)用。引数か、環境変数 VRQA_API_KEY。無ければ付けない。
+        key = api_key or os.environ.get("VRQA_API_KEY")
+        if key:
+            self._client.headers["X-API-Key"] = key
 
     def list_instructions(self) -> list[dict[str, Any]]:
         resp = self._client.get("/api/instructions")

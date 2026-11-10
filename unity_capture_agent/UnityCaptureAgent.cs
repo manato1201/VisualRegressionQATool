@@ -198,10 +198,18 @@ namespace VisualRegressionQATool.CaptureAgent
     public class BackendClient
     {
         private readonly string baseUrl;
+        private readonly string apiKey;
 
-        public BackendClient(string baseUrl)
+        // apiKey: VRQA_AUTH=required の環境用。省略時は環境変数 VRQA_API_KEY、無ければヘッダーを付けない。
+        public BackendClient(string baseUrl, string apiKey = null)
         {
             this.baseUrl = baseUrl.TrimEnd('/');
+            this.apiKey = !string.IsNullOrEmpty(apiKey) ? apiKey : Environment.GetEnvironmentVariable("VRQA_API_KEY");
+        }
+
+        private void ApplyAuth(UnityWebRequest request)
+        {
+            if (!string.IsNullOrEmpty(apiKey)) request.SetRequestHeader("X-API-Key", apiKey);
         }
 
         /// <summary>
@@ -224,6 +232,7 @@ namespace VisualRegressionQATool.CaptureAgent
 
             using (var req = UnityWebRequest.Get($"{baseUrl}/api/instructions"))
             {
+                ApplyAuth(req);
                 yield return req.SendWebRequest();
                 if (req.result != UnityWebRequest.Result.Success)
                 {
@@ -270,6 +279,7 @@ namespace VisualRegressionQATool.CaptureAgent
 
             using (var req = UnityWebRequest.Post($"{baseUrl}/api/captures", form))
             {
+                ApplyAuth(req);
                 yield return req.SendWebRequest();
                 if (req.result != UnityWebRequest.Result.Success)
                 {
@@ -294,13 +304,14 @@ namespace VisualRegressionQATool.CaptureAgent
                 onError);
         }
 
-        private static IEnumerator PostJson(string url, string jsonBody, Action<string> onSuccess, Action<string> onError)
+        private IEnumerator PostJson(string url, string jsonBody, Action<string> onSuccess, Action<string> onError)
         {
             var request = new UnityWebRequest(url, "POST");
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
             request.uploadHandler = new UploadHandlerRaw(bodyRaw);
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
+            ApplyAuth(request);
             yield return request.SendWebRequest();
             if (request.result != UnityWebRequest.Result.Success)
             {

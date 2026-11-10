@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from .. import models, repository
+from .. import auth, models, repository
 from ..alert_sink import AlertFailureContext, IAlertSink
 from ..deps import get_alert_sink, get_blob_store, get_conn
 from ..diff_engine import ImageDimensionMismatchError, PixelDiffEngine
@@ -157,7 +157,7 @@ def _execute_diff_run(
     )
 
 
-@router.post("/run", response_model=models.DiffRunResult)
+@router.post("/run", dependencies=[auth.operator], response_model=models.DiffRunResult)
 def run_diff(
     body: models.DiffRunRequest,
     conn: sqlite3.Connection = Depends(get_conn),
@@ -180,7 +180,7 @@ def run_diff(
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
-@router.post("/preview", response_model=models.DiffPreviewResult)
+@router.post("/preview", dependencies=[auth.operator], response_model=models.DiffPreviewResult)
 def preview_diff(
     body: models.DiffRunRequest,
     conn: sqlite3.Connection = Depends(get_conn),
@@ -216,7 +216,7 @@ def preview_diff(
     )
 
 
-@router.post("/run-batch", response_model=models.DiffBatchRunResponse)
+@router.post("/run-batch", dependencies=[auth.operator], response_model=models.DiffBatchRunResponse)
 def run_diff_batch(
     body: models.DiffBatchRunRequest,
     conn: sqlite3.Connection = Depends(get_conn),
