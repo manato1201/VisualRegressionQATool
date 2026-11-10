@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import auth, db
+from . import audit, auth, db
 from .alert_sink import build_alert_sink_from_env
 from .config import cors_origins_from_env
 from .routers import alerts, analysis, captures, diffs, instructions, references, runs
@@ -38,6 +38,8 @@ app = FastAPI(title="VisualRegressionQATool API", version="0.1.0", lifespan=life
 # 認証の無い API を、別サイトのページ(CSRF)や DNS rebinding から守る(app/security.py)。
 # 先に入れる=内側。CORS を外側にして、拒否の応答にも CORS ヘッダが付くようにする。
 install_request_guard(app, allowed_origins=cors_origins_from_env)
+# 監査ログ(app/audit.py): 変更系と、認証・権限の失敗を記録する。ガードの外側に入れて、ガードの 403 も残す。
+audit.install_audit(app)
 
 app.add_middleware(
     CORSMiddleware,

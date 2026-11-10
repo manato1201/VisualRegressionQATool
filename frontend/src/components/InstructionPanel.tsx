@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { CaptureInstruction } from "../types";
+import { needTitle, useCan } from "../role";
 
 interface Props {
   instructions: CaptureInstruction[];
@@ -16,6 +17,7 @@ export function InstructionPanel({
 }: Props) {
   const [sceneId, setSceneId] = useState("");
   const [creating, setCreating] = useState(false);
+  const canOperate = useCan()("operator");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -114,7 +116,8 @@ export function InstructionPanel({
         <button
           type="submit"
           className="btn btn-primary btn-sm"
-          disabled={creating || !sceneId.trim()}
+          disabled={!canOperate || creating || !sceneId.trim()}
+          title={needTitle(canOperate, "operator")}
         >
           {creating ? "作成中…" : "撮影指示を作成"}
         </button>

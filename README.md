@@ -137,6 +137,7 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `VRQA_AUTH` | `off` | `required` で認証を必須にする(下の「認証と役割」)。`required` でユーザーが 1 人もいなければ**起動しない**。 |
 | `VRQA_AUTH_FILE` | `backend/data/auth_users.json` | ユーザーと役割の保存先(キーは**ハッシュだけ**)。Git に入れない。 |
 | `VRQA_CF_ACCESS_TEAM_DOMAIN` / `VRQA_CF_ACCESS_AUD` | (無効) | 両方を設定すると、Cloudflare Access の JWT でも認証できる(メールで登録ユーザーに対応づける)。 |
+| `VRQA_AUDIT_LOG` | `backend/data/audit.jsonl` | 監査ログの保存先(下の「認証と役割」)。5 MB で `.1` に退避。 |
 | `VRQA_API_KEY` | (なし) | キャプチャエージェント(Python / Unity)が `X-API-Key` に付けるキー。 |
 | `VITE_API_BASE`(フロントのビルド時) | `http://localhost:8000` | UIが呼ぶAPIのURL |
 | `VRQA_ALERT_SINK` | `noop` | 下記「アラートsinkの設定」 |
@@ -188,6 +189,8 @@ VRQA_AUTH=required uv run uvicorn app.main:app
 - **Cloudflare Access**: `VRQA_CF_ACCESS_TEAM_DOMAIN`・`VRQA_CF_ACCESS_AUD` を設定すると、`Cf-Access-Jwt-Assertion` の JWT を検証する(RS256 だけ・署名/発行者/宛先/期限を必須)。**ユーザーは自動作成しない**: 上の `--email` で登録していない人は 403。
 - 権限の判断は**常にサーバー側**(UI の表示ではない)。足りなければ 403 と、必要な役割が画面に出る。
 - 認証なし(`/api/health`・`/api/auth/me`・`/api/auth/login`)以外の全 API が、`required` では viewer 以上を要求する。
+- **画面の出し分け**: 役割に足りない操作(アップロード・差分実行・撮影指示の作成=operator、基準画像への昇格・削除=admin)は、ボタンが無効になり、必要な権限が表示される。**表示だけで、権限の判断は常にサーバー**。
+- **監査ログ**(`VRQA_AUDIT_LOG`・JSON Lines): **変更系(POST・PUT・PATCH・DELETE)**と、**拒否(401・403)**、ログイン・ログアウトを、時刻・名前・役割・方式・メソッド・パス・結果・IP で残す。**本文・API キー・クッキー・クエリ文字列は記録しない**。読み取りと `/api/health` は記録しない。admin だけ `GET /api/auth/audit?limit=100`(新しい順)で読める。認証が `off` でも、変更は匿名として記録される。
 
 ## アラートsinkの設定
 

@@ -269,6 +269,7 @@ def require_role(minimum: str):
         if principal is None:
             raise HTTPException(401, "認証が必要です。X-API-Key を付けるか、ログインしてください。",
                                 headers={"WWW-Authenticate": "ApiKey"})
+        request.state.principal = principal  # 権限不足でも、誰が試したかを監査ログに残すため、判定の前に載せる
         if role_rank(principal.role) < role_rank(minimum):
             logger.warning("権限不足: %s(%s)が %s %s を要求", principal.name, principal.role,
                            request.method, request.url.path)

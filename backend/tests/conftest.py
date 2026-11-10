@@ -26,3 +26,9 @@ def blob_store(tmp_path: Path) -> BlobStore:
 def _allow_testserver_host(monkeypatch):
     """TestClient は Host: testserver で送る。Host の許可リスト(app/security.py)に足しておく。"""
     monkeypatch.setenv("VRQA_ALLOWED_HOSTS", "testserver")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_audit_log(tmp_path, monkeypatch):
+    """監査ログ(app/audit.py)を、テストごとの一時ファイルに向ける(本物の data/audit.jsonl に書かない)。"""
+    monkeypatch.setenv("VRQA_AUDIT_LOG", str(tmp_path / "audit.jsonl"))

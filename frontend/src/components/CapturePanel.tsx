@@ -4,6 +4,7 @@ import type { CapturedImage, ReferenceImage } from "../types";
 import type { DiffSettingsValue } from "../diffSettingsValue";
 import { DiffSettings } from "./DiffSettings";
 import { EmptyState } from "./EmptyState";
+import { needTitle, useCan } from "../role";
 
 interface Props {
   capturedImages: CapturedImage[];
@@ -64,6 +65,10 @@ export function CapturePanel({
     });
   }
 
+  const can = useCan();
+  const canOperate = can("operator");
+  const canAdmin = can("admin");
+
   async function handleBatchRun() {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
@@ -87,7 +92,7 @@ export function CapturePanel({
           <label style={{ fontSize: 14, color: "var(--color-body)" }}>image file</label>
           <input type="file" accept="image/png,image/jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </div>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={uploading || !file || !buildVersion.trim()}>
+        <button type="submit" className="btn btn-primary btn-sm" disabled={!canOperate || uploading || !file || !buildVersion.trim()} title={needTitle(canOperate, "operator")}>
           {uploading ? "アップロード中…" : "アップロード"}
         </button>
       </form>
@@ -108,7 +113,7 @@ export function CapturePanel({
           <button className="btn btn-tertiary btn-sm" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
             選択解除
           </button>
-          <button className="btn btn-secondary btn-sm" disabled={selected.size === 0 || !activeReference || batchBusy} onClick={handleBatchRun}>
+          <button className="btn btn-secondary btn-sm" disabled={!canOperate || selected.size === 0 || !activeReference || batchBusy} onClick={handleBatchRun} title={needTitle(canOperate, "operator")}>
             {batchBusy ? "一括実行中…" : `選択した画像をまとめて差分実行 (${selected.size})`}
           </button>
         </div>
@@ -157,19 +162,19 @@ export function CapturePanel({
               {isReference && <span className="badge-pill badge-pass">Active Reference</span>}
               <div style={{ display: "flex", gap: "var(--spacing-xs)", flexWrap: "wrap" }}>
                 {!isReference && (
-                  <button className="btn btn-tertiary btn-sm" disabled={busy} onClick={() => onPromote(img.captured_image_id)}>
+                  <button className="btn btn-tertiary btn-sm" disabled={busy || !canAdmin} onClick={() => onPromote(img.captured_image_id)} title={needTitle(canAdmin, "admin")}>
                     Referenceに昇格
                   </button>
                 )}
-                <button className="btn btn-secondary btn-sm" disabled={busy || !activeReference} onClick={() => onRunDiff(img.captured_image_id)}>
+                <button className="btn btn-secondary btn-sm" disabled={busy || !canOperate || !activeReference} onClick={() => onRunDiff(img.captured_image_id)} title={needTitle(canOperate, "operator")}>
                   {busyCapturedImageId === img.captured_image_id ? "実行中…" : "差分実行"}
                 </button>
                 <button
                   className="btn btn-tertiary btn-sm"
                   style={{ borderColor: "var(--color-fail)", color: "var(--color-fail)" }}
-                  disabled={busy}
+                  disabled={busy || !canAdmin}
                   onClick={() => handleDelete(img)}
-                  title="Referenceに昇格済み、または差分評価履歴がある画像は削除できません"
+                  title={needTitle(canAdmin, "admin") ?? "Referenceに昇格済み、または差分評価履歴がある画像は削除できません"}
                 >
                   削除
                 </button>

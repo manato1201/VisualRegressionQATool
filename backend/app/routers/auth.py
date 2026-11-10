@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from .. import auth
+from .. import audit, auth
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -38,8 +38,12 @@ def login(body: LoginRequest, request: Request, response: Response) -> Me:
         return Me(mode="off", authenticated=True, name=auth.ANONYMOUS.name, role=auth.ANONYMOUS.role,
                   source=auth.ANONYMOUS.source)
     user = auth.find_by_key(body.api_key.strip(), auth.load_users())
+    ip = request.client.host if request.client else None
     if user is None:
+        audit.record("login_failed", method="POST", path="/api/auth/login", status=401, ip=ip)
         raise HTTPException(401, "API キーが正しくありません。")
+    audit.record("login", actor=user["name"], role=user["role"], source="key", method="POST",
+                 path="/api/auth/login", status=200, ip=ip)
     # JS から読めないクッキー。別サイトからは送られない(SameSite=Strict)。画像(<img>)の読み込みにも付く。
     response.set_cookie(
         auth.COOKIE_NAME,
@@ -53,5 +57,16 @@ def login(body: LoginRequest, request: Request, response: Response) -> Me:
 
 
 @router.post("/logout", status_code=204)
-def logout(response: Response) -> None:
+def logout(request: Request, response: Response) -> None:
+    principal = auth.current_principal(request) if auth.auth_mode() == "required" else None
+    if principal is not None:
+        audit.record("logout", actor=principal.name, role=principal.role, source=principal.source, method="POST",
+                     path="/api/auth/logout", status=204, ip=request.client.host if request.client else None)
     response.delete_cookie(auth.COOKIE_NAME, path="/")
+
+
+@router.get("/audit", dependencies=[auth.admin])
+def audit_log(limit: int = 100) -> dict:
+    """監査ログ(新しい順)。admin だけ。本文・キー・クッキーは記録されていない。"""
+    limit = max(1, min(limit, 500))
+    return {"entries": audit.read_recent(limit)}
