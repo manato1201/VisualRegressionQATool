@@ -20,3 +20,9 @@ def conn(tmp_path: Path) -> sqlite3.Connection:
 @pytest.fixture()
 def blob_store(tmp_path: Path) -> BlobStore:
     return BlobStore(tmp_path / "blobs")
+
+
+@pytest.fixture(autouse=True)
+def _allow_testserver_host(monkeypatch):
+    """TestClient は Host: testserver で送る。Host の許可リスト(app/security.py)に足しておく。"""
+    monkeypatch.setenv("VRQA_ALLOWED_HOSTS", "testserver")

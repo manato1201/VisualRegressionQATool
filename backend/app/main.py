@@ -10,6 +10,7 @@ from . import db
 from .alert_sink import build_alert_sink_from_env
 from .config import cors_origins_from_env
 from .routers import alerts, analysis, captures, diffs, instructions, references, runs
+from .security import install_request_guard
 from .storage import DEFAULT_BLOB_ROOT, BlobStore
 
 
@@ -31,6 +32,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="VisualRegressionQATool API", version="0.1.0", lifespan=lifespan)
+
+# 認証の無い API を、別サイトのページ(CSRF)や DNS rebinding から守る(app/security.py)。
+# 先に入れる=内側。CORS を外側にして、拒否の応答にも CORS ヘッダが付くようにする。
+install_request_guard(app, allowed_origins=cors_origins_from_env)
 
 app.add_middleware(
     CORSMiddleware,

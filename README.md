@@ -133,6 +133,7 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `VRQA_DB_PATH` | `backend/data/vrqa.sqlite3` | SQLiteファイルの場所 |
 | `VRQA_BLOB_ROOT` | `backend/data/blobs` | 画像BLOBの置き場(DBと同じ永続ボリュームに置くこと) |
 | `VRQA_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | UIの配信元オリジン(カンマ区切り)。**別ホストでUIを配信するなら必ず指定**。ここに無いオリジンからはブラウザがAPIを呼べない。`*`は拒否される(画像をcrossoriginで読むため、全許可にしない) |
+| `VRQA_ALLOWED_HOSTS` | (ループバックのみ) | APIを開くホスト名(カンマ区切り。ポートは無視)。**localhost / 127.0.0.1 以外のホスト名でAPIを公開するなら必ず指定**。DNS rebinding対策のHost検査で、無いホストは403。変更操作(POST等)は、Originが同一オリジンか `VRQA_CORS_ORIGINS` の中にあるときだけ通る。**認証ではない**(`app/security.py`) |
 | `VITE_API_BASE`(フロントのビルド時) | `http://localhost:8000` | UIが呼ぶAPIのURL |
 | `VRQA_ALERT_SINK` | `noop` | 下記「アラートsinkの設定」 |
 
