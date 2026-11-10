@@ -1,2 +1,10 @@
 # Not part of this project; kept out of the repo per user instruction.
 /web-production-skill/
+
+# Claude Code の承認済みコマンドには秘密情報が残ることがある(2026-11-09 追加)
+.claude/settings.local.json
+.env
+.env.*
+!.env.example
+# 認証のユーザーと役割(キーのハッシュ)。Git に入れない(2026-11-10 追加)
+auth_users.json
