@@ -26,7 +26,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 認証(VRQA_AUTH=required)のクッキーを送る。API とは別オリジンでも、CORS が許可した origin なら付く。
   const res = await fetch(`${API_BASE}${path}`, { credentials: "include", ...init });
   if (!res.ok) {
@@ -107,11 +107,6 @@ export const api = {
       `/api/captures?instruction_id=${encodeURIComponent(instructionId)}`,
     ),
 
-  deleteCapturedImage: (capturedImageId: string) =>
-    request<void>(`/api/captures/${encodeURIComponent(capturedImageId)}`, {
-      method: "DELETE",
-    }),
-
   uploadCapturedImage: async (
     instructionId: string,
     buildVersion: string,
@@ -126,16 +121,6 @@ export const api = {
       body: form,
     });
   },
-
-  promoteReference: (capturedImageId: string, approvedBy: string) =>
-    request<ReferenceImage>("/api/references/promote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        captured_image_id: capturedImageId,
-        approved_by: approvedBy,
-      }),
-    }),
 
   getActiveReference: (instructionId: string) =>
     request<ReferenceImage>(

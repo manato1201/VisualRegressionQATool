@@ -10,8 +10,8 @@ const STEPS = [
     body: "build version(git shaやビルド番号など)と画像ファイルを指定してアップロードします。同一内容の画像はchecksumで重複排除され、BLOBは1つだけ保存されます。",
   },
   {
-    title: "3. 最初の1枚をReferenceに昇格",
-    body: "「見た目が正しい」と確認できた撮影画像を「Referenceに昇格」します。以降の撮影画像はこのReferenceとピクセル単位で比較されます。Reference未昇格の画像は差分比較の基準として使われません。",
+    title: "3. 最初の1枚をReferenceに昇格(管理者・管理画面)",
+    body: "「見た目が正しい」と確認できた撮影画像を、管理者が管理画面(/admin.html)で「Referenceに昇格」します。以降の撮影画像はこのReferenceとピクセル単位で比較されます。Reference未昇格の画像は差分比較の基準として使われません。",
   },
   {
     title: "4. 差分実行",

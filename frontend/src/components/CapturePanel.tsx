@@ -12,10 +12,8 @@ interface Props {
   diffSettings: DiffSettingsValue;
   onDiffSettingsChange: (value: DiffSettingsValue) => void;
   onUpload: (buildVersion: string, file: File) => Promise<void>;
-  onPromote: (capturedImageId: string) => Promise<void>;
   onRunDiff: (capturedImageId: string) => Promise<void>;
   onRunDiffBatch: (capturedImageIds: string[]) => Promise<void>;
-  onDelete: (capturedImageId: string) => Promise<void>;
   busyCapturedImageId: string | null;
   batchBusy: boolean;
 }
@@ -26,10 +24,8 @@ export function CapturePanel({
   diffSettings,
   onDiffSettingsChange,
   onUpload,
-  onPromote,
   onRunDiff,
   onRunDiffBatch,
-  onDelete,
   busyCapturedImageId,
   batchBusy,
 }: Props) {
@@ -51,11 +47,6 @@ export function CapturePanel({
     }
   }
 
-  function handleDelete(img: CapturedImage) {
-    if (!window.confirm(`「${img.build_version}」を削除しますか?この操作は取り消せません。`)) return;
-    onDelete(img.captured_image_id);
-  }
-
   function toggleSelected(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -67,7 +58,6 @@ export function CapturePanel({
 
   const can = useCan();
   const canOperate = can("operator");
-  const canAdmin = can("admin");
 
   async function handleBatchRun() {
     const ids = Array.from(selected);
@@ -81,6 +71,9 @@ export function CapturePanel({
       <div>
         <p className="eyebrow">Captured Images</p>
         <h2 style={{ fontSize: 24, marginTop: 4 }}>撮影画像</h2>
+        <p className="text-body-mid" style={{ fontSize: 12, marginTop: 4 }}>
+          基準画像の更新と撮影画像の削除は、管理者だけの{can("admin") ? <a href="/admin.html">管理画面</a> : "管理画面"}で行います。
+        </p>
       </div>
 
       <form onSubmit={handleUpload} style={{ display: "flex", gap: "var(--spacing-md)", alignItems: "end", flexWrap: "wrap" }}>
@@ -161,22 +154,8 @@ export function CapturePanel({
               </span>
               {isReference && <span className="badge-pill badge-pass">Active Reference</span>}
               <div style={{ display: "flex", gap: "var(--spacing-xs)", flexWrap: "wrap" }}>
-                {!isReference && (
-                  <button className="btn btn-tertiary btn-sm" disabled={busy || !canAdmin} onClick={() => onPromote(img.captured_image_id)} title={needTitle(canAdmin, "admin")}>
-                    Referenceに昇格
-                  </button>
-                )}
                 <button className="btn btn-secondary btn-sm" disabled={busy || !canOperate || !activeReference} onClick={() => onRunDiff(img.captured_image_id)} title={needTitle(canOperate, "operator")}>
                   {busyCapturedImageId === img.captured_image_id ? "実行中…" : "差分実行"}
-                </button>
-                <button
-                  className="btn btn-tertiary btn-sm"
-                  style={{ borderColor: "var(--color-fail)", color: "var(--color-fail)" }}
-                  disabled={busy || !canAdmin}
-                  onClick={() => handleDelete(img)}
-                  title={needTitle(canAdmin, "admin") ?? "Referenceに昇格済み、または差分評価履歴がある画像は削除できません"}
-                >
-                  削除
                 </button>
               </div>
             </div>

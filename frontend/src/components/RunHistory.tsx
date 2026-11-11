@@ -136,7 +136,7 @@ export function RunHistory({ runs, firstBadCommit, selectedRunId, onSelectRun }:
           description="この撮影指示は、差分を一度も実行していない「未検査」の状態です。"
           steps={[
             "上の「撮影画像」にbuild versionを付けて画像をアップロードする",
-            "見た目が正しい1枚を「Referenceに昇格」する",
+            "管理者が、見た目が正しい1枚を管理画面で基準画像(Reference)にする",
             "ほかの撮影画像で「差分実行」を押す",
           ]}
         />
