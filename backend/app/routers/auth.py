@@ -20,6 +20,8 @@ class Me(BaseModel):
     name: str | None = None
     role: str | None = None
     source: str | None = None
+    # 開発者・デバッグ向けの機能(しきい値ラボなど)が、この人に使えるか。UI の出し分け用(判断はサーバー側)
+    debug: bool = False
 
 
 @router.get("/me", response_model=Me)
@@ -29,14 +31,15 @@ def me(request: Request) -> Me:
     principal = auth.current_principal(request)
     if principal is None:
         return Me(mode=mode, authenticated=False)
-    return Me(mode=mode, authenticated=True, name=principal.name, role=principal.role, source=principal.source)
+    return Me(mode=mode, authenticated=True, name=principal.name, role=principal.role, source=principal.source,
+              debug=auth.debug_available(principal.role))
 
 
 @router.post("/login", response_model=Me)
 def login(body: LoginRequest, request: Request, response: Response) -> Me:
     if auth.auth_mode() == "off":
         return Me(mode="off", authenticated=True, name=auth.ANONYMOUS.name, role=auth.ANONYMOUS.role,
-                  source=auth.ANONYMOUS.source)
+                  source=auth.ANONYMOUS.source, debug=True)
     user = auth.find_by_key(body.api_key.strip(), auth.load_users())
     ip = request.client.host if request.client else None
     if user is None:
@@ -53,7 +56,8 @@ def login(body: LoginRequest, request: Request, response: Response) -> Me:
         secure=request.url.scheme == "https",
         path="/",
     )
-    return Me(mode="required", authenticated=True, name=user["name"], role=user["role"], source="key")
+    return Me(mode="required", authenticated=True, name=user["name"], role=user["role"], source="key",
+              debug=auth.debug_available(user["role"]))
 
 
 @router.post("/logout", status_code=204)

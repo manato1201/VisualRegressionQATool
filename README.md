@@ -138,6 +138,7 @@ Houdini本体が無くても、フェイクエージェント経由で「撮影�
 | `VRQA_AUTH_FILE` | `backend/data/auth_users.json` | ユーザーと役割の保存先(キーは**ハッシュだけ**)。Git に入れない。 |
 | `VRQA_CF_ACCESS_TEAM_DOMAIN` / `VRQA_CF_ACCESS_AUD` | (無効) | 両方を設定すると、Cloudflare Access の JWT でも認証できる(メールで登録ユーザーに対応づける)。 |
 | `VRQA_AUDIT_LOG` | `backend/data/audit.jsonl` | 監査ログの保存先(下の「認証と役割」)。5 MB で `.1` に退避。 |
+| `VRQA_DEBUG` | (無効) | **開発者・デバッグ向けの機能**(しきい値ラボ `POST /api/diffs/preview`・フレーム連続性の検査 `POST /api/analysis/continuity`)を、**本番(`VRQA_AUTH=required`)で有効にする**(`1`)。既定は**無効**(ログインしている人には 404)で、有効にしても **admin だけ**。`off`(ローカルの単独利用)では従来どおり使える。UI のしきい値ラボは別チャンクで、使えない人には読み込まれない。 |
 | `VRQA_API_KEY` | (なし) | キャプチャエージェント(Python / Unity)が `X-API-Key` に付けるキー。 |
 | `VITE_API_BASE`(フロントのビルド時) | `http://localhost:8000` | UIが呼ぶAPIのURL |
 | `VRQA_ALERT_SINK` | `noop` | 下記「アラートsinkの設定」 |

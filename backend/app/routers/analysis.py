@@ -12,7 +12,7 @@ from ..storage import BlobStore
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 
-@router.post("/continuity", dependencies=[auth.operator], response_model=models.ContinuityResponse)
+@router.post("/continuity", dependencies=[auth.debug], response_model=models.ContinuityResponse)
 def check_continuity(
     body: models.ContinuityRequest,
     conn: sqlite3.Connection = Depends(get_conn),

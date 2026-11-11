@@ -70,7 +70,7 @@ def test_health_and_login_state_are_open(keys):
     client, _ = keys
     assert client.get("/api/health").status_code == 200
     me = client.get("/api/auth/me").json()
-    assert me == {"mode": "required", "authenticated": False, "name": None, "role": None, "source": None}
+    assert me == {"mode": "required", "authenticated": False, "name": None, "role": None, "source": None, "debug": False}
 
 
 def test_no_key_and_wrong_key_are_401(keys):

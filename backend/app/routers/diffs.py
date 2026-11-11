@@ -180,7 +180,7 @@ def run_diff(
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
-@router.post("/preview", dependencies=[auth.operator], response_model=models.DiffPreviewResult)
+@router.post("/preview", dependencies=[auth.debug], response_model=models.DiffPreviewResult)
 def preview_diff(
     body: models.DiffRunRequest,
     conn: sqlite3.Connection = Depends(get_conn),

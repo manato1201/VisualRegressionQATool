@@ -73,6 +73,8 @@ export interface Me {
   name: string | null;
   role: "viewer" | "operator" | "admin" | null;
   source: string | null;
+  /** 開発者・デバッグ向けの機能(しきい値ラボなど)が、この人に使えるか。判断はサーバー側(本番では既定で無効・admin だけ) */
+  debug: boolean;
 }
 
 export const api = {

@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -39,7 +41,11 @@ import {
   type StageBackground,
   type ZoomMode,
 } from "./diffviewer/shared";
-import { ThresholdLab } from "./diffviewer/ThresholdLab";
+import { useDebug } from "../role";
+
+// 開発者・デバッグ向けの「しきい値ラボ」は、別のバンドル(別チャンク)にする。使えない人(本番の admin 以外)には、
+// コードそのものを読み込まない(画面を隠すだけにしない)。サーバーも同じ判断で /api/diffs/preview を拒否する。
+const ThresholdLab = lazy(() => import("./diffviewer/ThresholdLab").then((m) => ({ default: m.ThresholdLab })));
 import { ZoomPanel } from "./diffviewer/ZoomPanel";
 
 type Mode = "diff" | "side-by-side" | "slider" | "blink" | "onion" | "single";
@@ -106,6 +112,7 @@ function toPixel(rel: HoverRel, size: { width: number; height: number }): HoverP
 }
 
 export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
+  const debug = useDebug();
   const [mode, setMode] = useState<Mode>("diff");
   const [background, setBackground] = useState<StageBackground>("checker");
   const [zoom, setZoom] = useState<ZoomMode>("fit");
@@ -578,7 +585,11 @@ export function DiffViewer({ run, runs, firstBadCommit, onSelectRun }: Props) {
 
         <div style={{ flex: "0 0 260px", minWidth: 220, display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
           <ResultPanel run={run} regionCount={clusterResult ? clusterResult.total : null} />
-          <ThresholdLab key={run.evaluation_result_id} run={run} />
+          {debug && (
+            <Suspense fallback={null}>
+              <ThresholdLab key={run.evaluation_result_id} run={run} />
+            </Suspense>
+          )}
         </div>
       </div>
 

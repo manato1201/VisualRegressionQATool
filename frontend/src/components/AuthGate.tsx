@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, describeApiError, type Me } from "../api";
-import { RoleContext } from "../role";
+import { DebugContext, RoleContext } from "../role";
 
 /**
  * VRQA_AUTH=required のとき、ログインするまで画面を出さない。
@@ -66,7 +66,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <button type="button" onClick={() => void onLogout()}>ログアウト</button>
           </div>
         )}
-        <RoleContext.Provider value={me.role ?? "admin"}>{children}</RoleContext.Provider>
+        <RoleContext.Provider value={me.role ?? "admin"}>
+          <DebugContext.Provider value={me.debug === true}>{children}</DebugContext.Provider>
+        </RoleContext.Provider>
       </>
     );
   }

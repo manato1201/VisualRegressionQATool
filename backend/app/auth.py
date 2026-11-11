@@ -17,6 +17,10 @@
     off      認証なし(既定・従来どおり)。Host / Origin のガード(app/security.py)だけが効く。全員 admin 扱い。
     required 認証を必須にする。**ユーザーが 1 人もいなければ起動を止める**(設定ミスで素通しにしない=fail-closed)。
 
+開発者・デバッグ向けの機能(しきい値ラボ ``POST /api/diffs/preview``・フレーム連続性の検査 ``POST /api/analysis/continuity``)は、
+**本番(``VRQA_AUTH=required``)では既定で無効**(ログインしている人には 404。存在しない扱い)。``VRQA_DEBUG=1`` で有効にしても、**admin だけ**が使える。
+``off``(ローカルの単独利用)では従来どおり使える(``Depends(debug)``)。
+
 ユーザーの管理:
     uv run python -m app.auth add --name alice --role admin     # キーを 1 度だけ表示
     uv run python -m app.auth add --name bob --role viewer --email bob@example.com --no-key   # Access 用(キーなし)
@@ -47,6 +51,7 @@ AUTH_ENV = "VRQA_AUTH"
 AUTH_FILE_ENV = "VRQA_AUTH_FILE"
 TEAM_DOMAIN_ENV = "VRQA_CF_ACCESS_TEAM_DOMAIN"
 AUD_ENV = "VRQA_CF_ACCESS_AUD"
+DEBUG_ENV = "VRQA_DEBUG"
 
 ROLES = ("viewer", "operator", "admin")
 COOKIE_NAME = "vrqa_key"
@@ -280,10 +285,33 @@ def require_role(minimum: str):
     return dependency
 
 
+def debug_enabled() -> bool:
+    """開発者・デバッグ向けの機能を、本番で有効にするか(``VRQA_DEBUG`` が 1 / true / yes / on)。既定は無効。"""
+    return os.environ.get(DEBUG_ENV, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def debug_available(role: str | None) -> bool:
+    """この役割の人に、デバッグ向けの機能が使えるか(UI が出し分けるための表示用。判断はサーバー側の ``require_debug``)。"""
+    if auth_mode() == "off":
+        return True  # ローカルの単独利用は、従来どおり
+    return debug_enabled() and role_rank(role or "") >= role_rank("admin")
+
+
+_require_admin = require_role("admin")
+
+
+def require_debug(request: Request) -> Principal:
+    """デバッグ向けの機能の入口。本番では、無効なら**存在しない扱い(404)**、有効でも **admin だけ**。"""
+    if auth_mode() == "required" and not debug_enabled():
+        raise HTTPException(404, "Not Found")
+    return _require_admin(request)  # off のときは ANONYMOUS(admin 扱い)で通る
+
+
 # 使い回し用
 viewer = Depends(require_role("viewer"))
 operator = Depends(require_role("operator"))
 admin = Depends(require_role("admin"))
+debug = Depends(require_debug)
 
 
 def ensure_auth_configured() -> None:
