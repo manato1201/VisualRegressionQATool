@@ -7,6 +7,7 @@
 アイコン付きのビジュアル版(直角の矢印・グルーピングを強調したもの)は [architecture.html](architecture.html) の「システム構成」セクションを参照。ここではMermaidのプレーンな版を掲載する。
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 flowchart LR
     subgraph Frontend["React 19 + Vite (frontend/)"]
         UI[App.tsx<br/>状態管理]
@@ -57,6 +58,7 @@ flowchart LR
 Phase 4設計の「CaptureInstruction → CapturedImage → DiffImage → EvaluationResult」の一直線チェーンに、Phase 3の`ReferenceStore`昇格ワークフロー用テーブル(`REFERENCE_IMAGE`)とPhase 5のアラート追跡用テーブル(`ALERT_ISSUE`)を追加したもの。外部キーは全てNOT NULL(チェーンを曖昧にしない、というPhase 0のアンチパターン回避方針を反映)。
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 erDiagram
     CAPTURE_INSTRUCTION ||--o{ CAPTURED_IMAGE : "撮影する"
     CAPTURED_IMAGE ||--o{ REFERENCE_IMAGE : "承認されると昇格"
@@ -126,6 +128,7 @@ erDiagram
 ## 3. 単発差分実行のシーケンス
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -165,6 +168,7 @@ sequenceDiagram
 1件の失敗が他の項目の処理を止めないことが要点。`/run`と`/run-batch`は`_execute_diff_run()`という共通ロジックを共有し、`/run-batch`側だけが`_DiffRunError`を握りつぶして結果配列に積む。
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 sequenceDiagram
     actor User
     participant UI as React UI
@@ -193,6 +197,7 @@ sequenceDiagram
 SSIM等の知覚的差分は採用せず、あくまで「厳密なピクセル差分＋任意の後処理フィルタ」に留める(Phase 0 / Phase 3の設計方針)。`min_diff_region_pixels`による連結成分フィルタは類似度スコアではなく、あくまで「差分ピクセルが何個繋がっているか」という幾何的な後処理であることに注意。
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 flowchart TD
     A[captured / reference 画像バイト列] --> B{解像度が一致?}
     B -- No --> C[ImageDimensionMismatchError<br/>tolerance では誤魔化さない]
@@ -217,6 +222,7 @@ flowchart TD
 `Research-Collector`の「失敗時ラベル付きIssue自動作成→復旧時自動クローズ」パターンを踏襲。
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 stateDiagram-v2
     [*] --> NoOpenAlert
     NoOpenAlert --> Open: verdict=fail かつ 既存openなし\n→ notify_failure()
@@ -230,6 +236,7 @@ stateDiagram-v2
 詳細は [CAPTURE_AGENT_DESIGN.md](CAPTURE_AGENT_DESIGN.md)。サーバー側API(`/api/captures` `/api/diffs/run`)は変更せず、各エンジン側に立つ薄いエージェントが同じHTTP契約を満たすことで、既存のPhase 3-5パイプラインにそのまま乗る。
 
 ```mermaid
+%%{init: {"theme":"base","fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","themeVariables":{"fontFamily":"Noto Sans JP, Hiragino Sans, Meiryo, sans-serif","primaryColor":"#ffffff","primaryBorderColor":"#d0d5dd","primaryTextColor":"#101828","lineColor":"#667085","clusterBkg":"#f2f4f7","clusterBorder":"#d0d5dd","edgeLabelBackground":"#ffffff"},"flowchart":{"wrappingWidth":480,"nodeSpacing":40,"rankSpacing":56,"padding":14},"sequence":{"mirrorActors":false,"wrap":false,"width":150,"actorMargin":30,"messageMargin":34}}}%%
 flowchart LR
     subgraph Unity["Unity (C#)"]
         UA[UnityCaptureAgent]
