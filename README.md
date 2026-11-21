@@ -73,3 +73,14 @@ npm run dev                                            # http://localhost:5173
 - `first-bad-commit` は**最初の失敗**で、「いまの失敗の始まり」ではありません。flaky は**過去の判定を書き換えます**。
 - 通知先が落ちていると、差分実行が 500 を返すことがあります(判定は保存済み)。詳細は [既知の問題](docs/learn/06-troubleshooting-maintenance.md)。
 - 画面・撮影エージェントの確認範囲は、上の「状態」の表のとおり(Unity・実機 Houdini は未検証)。
+
+## ライセンス
+
+[PolyForm Noncommercial License 1.0.0](LICENSE) です。**個人・研究・教育・非営利の利用は無料**で、自由に使えます。**営利目的の利用(会社の業務での利用、有償の製品・サービスへの組み込みなど)は許可されていません**。
+
+- 商用利用をご希望の場合は、[Issue](https://github.com/manato1201/VisualRegressionQATool/issues)(ラベル `commercial`)でご相談ください。別途の許諾をお出しします。
+- 著作権者: 松浦真聖 (Matsuura Manato)。表示事項は [NOTICE](NOTICE) にあります。再配布するときは、`LICENSE` と `NOTICE` を一緒に渡してください。
+- 第三者の著作物(依存パッケージ・同梱の素材・外部サービスのデータなど)は、それぞれのライセンスに従います。詳細は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- この節は条文の要約です。**条文(LICENSE)が優先します**。
+
+English: licensed under the PolyForm Noncommercial License 1.0.0. Noncommercial use is free; commercial use requires a separate license (open an issue labeled `commercial`).
