@@ -49,15 +49,18 @@ export default function AdminApp() {
     refreshDetail(selectedId).catch((e) => setBanner(describeApiError(e)));
   }, [isAdmin, selectedId, refreshDetail]);
 
-  async function run(id: string, action: () => Promise<unknown>) {
-    if (!selectedId) return;
+  // 成功したら true(長押しの確定ボタンが ✓ を出すのに使う)。
+  async function run(id: string, action: () => Promise<unknown>): Promise<boolean> {
+    if (!selectedId) return false;
     setBusyId(id);
     setBanner(null);
     try {
       await action();
       await refreshDetail(selectedId);
+      return true;
     } catch (e) {
       setBanner(describeApiError(e));
+      return false;
     } finally {
       setBusyId(null);
     }
@@ -72,11 +75,13 @@ export default function AdminApp() {
     void run(id, () => adminApi.promoteReference(id, "web-ui"));
   }
 
-  async function confirmPromote() {
+  // 長押しで確定(HoldToConfirm)。成功なら ✓ を見せてから閉じる(onDone)。失敗なら、すぐ閉じて上の赤い帯で理由を見せる。
+  async function confirmPromote(): Promise<boolean> {
     const id = pendingPromoteId;
-    if (!id) return;
-    await run(id, () => adminApi.promoteReference(id, "web-ui"));
-    setPendingPromoteId(null);
+    if (!id) return false;
+    const ok = await run(id, () => adminApi.promoteReference(id, "web-ui"));
+    if (!ok) setPendingPromoteId(null);
+    return ok;
   }
 
   async function confirmDelete() {
@@ -103,8 +108,9 @@ export default function AdminApp() {
       <ConfirmDialog
         open={pendingPromoteId !== null}
         title="基準画像(Reference)を更新しますか?"
-        confirmLabel="Referenceを更新する"
+        confirmLabel="長押しで Reference を更新"
         busy={busyId !== null && busyId === pendingPromoteId}
+        hold={{ doneLabel: "Referenceを更新しました", onDone: () => setPendingPromoteId(null) }}
         onConfirm={confirmPromote}
         onCancel={() => setPendingPromoteId(null)}
       >

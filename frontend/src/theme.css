@@ -592,6 +592,81 @@ select {
   background: var(--color-canvas);
 }
 
+/* 長押しで確定(HoldToConfirm・2026-11-26): 押している間に塗り(.hold-fill)が進み、上の文字(反転色)が塗りの分だけ見える。
+   満ちたら丸くなり(幅はばね)、成功で ✓ を引く。ばねの値は motion.ts の HOLD。 */
+.hold {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  box-sizing: border-box;
+  background: var(--color-canvas);
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-radius 0.2s ease;
+}
+.hold-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--color-primary);
+  z-index: -1;
+}
+.hold-label {
+  white-space: nowrap;
+}
+.hold-label-top {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-primary);
+  clip-path: inset(0 100% 0 0);
+}
+.hold-check {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: var(--color-on-primary);
+  opacity: 0;
+}
+.hold-check path {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+  transition: stroke-dashoffset 0.35s ease 0.1s;
+}
+.hold.is-done {
+  padding-inline: 0;
+  border-radius: var(--rounded-pill);
+}
+.hold.is-done .hold-label {
+  opacity: 0;
+}
+.hold.is-done .hold-fill {
+  width: 100% !important;
+}
+.hold.is-ok .hold-check {
+  opacity: 1;
+}
+.hold.is-ok .hold-check path {
+  stroke-dashoffset: 0;
+}
+.hold:not(:disabled):hover {
+  opacity: 1;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

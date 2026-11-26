@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { HoldToConfirm } from "./HoldToConfirm";
 
 interface Props {
   open: boolean;
@@ -7,7 +8,10 @@ interface Props {
   confirmLabel: string;
   cancelLabel?: string;
   busy?: boolean;
-  onConfirm: () => void;
+  /** 渡すと、確定ボタンが長押し式(HoldToConfirm)になる。onConfirm は成功で true・失敗で false を返す。
+   * doneLabel は終わったときの読み上げ、onDone は ✓ を見せたあとに呼ぶ(ここでダイアログを閉じる)。 */
+  hold?: { doneLabel: string; onDone: () => void };
+  onConfirm: () => unknown;
   onCancel: () => void;
 }
 
@@ -16,7 +20,9 @@ interface Props {
  * focus trap, makes the page behind inert, restores focus on close and handles
  * Esc, none of which a hand-rolled overlay does reliably. Focus starts on
  * "cancel" so a stray Enter cannot confirm a destructive change. No
- * open/close animation -- a confirmation should appear instantly and quietly. */
+ * open/close animation -- a confirmation should appear instantly and quietly.
+ * With `hold`, the confirm button must be held down (HoldToConfirm) -- used
+ * where the change cannot be undone by the next click (replacing the baseline). */
 export function ConfirmDialog({
   open,
   title,
@@ -24,6 +30,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "キャンセル",
   busy = false,
+  hold,
   onConfirm,
   onCancel,
 }: Props) {
@@ -79,14 +86,19 @@ export function ConfirmDialog({
           >
             {cancelLabel}
           </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={onConfirm}
-            disabled={busy}
-          >
-            {busy ? "更新中…" : confirmLabel}
-          </button>
+          {hold ? (
+            // key: 開くたびに作り直し、前回の ✓ や幅を持ち越さない
+            <HoldToConfirm key={String(open)} label={confirmLabel} doneLabel={hold.doneLabel} onConfirm={onConfirm} onDone={hold.onDone} />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={onConfirm}
+              disabled={busy}
+            >
+              {busy ? "更新中…" : confirmLabel}
+            </button>
+          )}
         </div>
       </div>
     </dialog>
